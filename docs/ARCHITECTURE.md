@@ -49,10 +49,10 @@ comparaison vCPU / RAM / disque avec la console Infomaniak.
 ```
  SERVER CLOUD                                        SUPABASE
  ┌───────────────────────────────┐   HTTPS   ┌───────────────────────────────────────────┐
- │ Hébergement A ─ agent COLLECTOR ├────────►│ schéma agent_api (exposé, minimal)         │
- │   /proc + df → système 1×/min  │  1×/min   │   heartbeat(payload)  ← token en header    │
- │ Hébergement B ─ agent          ├────────►│   submit_diagnostic(action_id, result)     │
- │   heartbeat léger 1×/min       │           │        │ SECURITY DEFINER, 1 transaction   │
+ │ Hébergement A ─ agent COLLECTOR ├────────►│ RPC PostgREST (SECURITY DEFINER)           │
+ │   /proc + df → système 1×/min  │  1×/min   │   agent_heartbeat(payload) ← token header  │
+ │ Hébergement B ─ agent          ├────────►│   agent_submit_diagnostic(...)  (phase 7)  │
+ │   heartbeat léger 1×/min       │           │        │ 1 transaction SQL                 │
  │ Hébergement C ─ agent          ├────────►│        ▼                                   │
  │   heartbeat léger 1×/min       │◄────────┤ PostgreSQL : métriques, règles, incidents, │
  └───────────────────────────────┘ {actions} │   diagnostics, outbox                      │
@@ -71,7 +71,7 @@ comparaison vCPU / RAM / disque avec la console Infomaniak.
 | Frontend | React + TypeScript + Vite, Tailwind, TanStack Query, React Router, Recharts | SPA statique, aucun SSR nécessaire ; tout le backend est dans Supabase |
 | Hébergement front | Netlify (statique), déploiement continu depuis GitHub | |
 | Base et backend | Supabase (PostgreSQL, PostgREST, Auth, RLS, Realtime, pg_cron, Edge Functions) | Toutes les briques dont le projet a besoin, sans serveur à maintenir |
-| **Ingestion** | **Hybride** : RPC PostgREST (schéma `agent_api`) pour heartbeats et diagnostics ; Edge Functions seulement pour `notify` (Discord) et `probe` | Le chemin à haute fréquence (259 200 appels/mois) ne consomme aucune invocation Edge. Logique critique en SQL, atomique et testable |
+| **Ingestion** | **Hybride** : RPC PostgREST (fonctions `agent_*` du schéma `public`, `EXECUTE` ouvert à `anon` mais token obligatoire) pour heartbeats et diagnostics ; Edge Functions seulement pour `notify` (Discord) et `probe` | Le chemin à haute fréquence (259 200 appels/mois) ne consomme aucune invocation Edge. Logique critique en SQL, atomique et testable |
 | Logique métier | PL/pgSQL (une transaction par heartbeat) + tests pgTAP | Atomicité, pas de double alerte |
 | Notifications | Pattern *outbox* + `dedupe_key` unique | L'anti-spam est garanti par une contrainte, pas par la bonne volonté |
 | Agent | Bash (builtins) + curl ; awk uniquement pour l'analyse de logs | Aucune dépendance, peu de forks |
@@ -87,36 +87,68 @@ collecteur ne demande aucune réinstallation.
 | | Collecteur système (1 par Cloud) | Agent d'hébergement |
 |---|---|---|
 | Fréquence | 1×/min | 1×/min |
-| Envoie | heartbeat + bloc `system` (load 1/5/15, CPU %, RAM, swap, disque, uptime, cœurs, `hostname`, `disk.device`) | heartbeat seul (~300 octets) |
+| Envoie | heartbeat + `points` (load 1/5/15, CPU %, RAM, swap, disque + périphérique, uptime, cœurs) | heartbeat seul (~300 octets) |
 | Aussi | version, erreurs locales, taille et inode de `access.log` | idem |
 | Spool local | oui (30 points, renvoyés en lot après une coupure) | non |
 | Analyse de logs | uniquement sur action reçue | idem |
 
 Règles côté serveur :
-- Un bloc `system` envoyé par un agent non collecteur est **ignoré** (anomalie journalisée).
+- Des `points` envoyés par un agent non collecteur sont **ignorés** (anomalie `points_ignored`).
 - Index unique partiel : exactement un collecteur par Cloud.
-- `hostname` et `disk.device` d'un hébergement doivent correspondre à ceux de son Cloud, sinon anomalie
-  (détecte une erreur de rattachement).
+- Le `hostname` d'un hébergement doit correspondre à celui de son Cloud (appris au premier relevé du collecteur),
+  sinon anomalie `hostname_mismatch` (détecte une erreur de rattachement).
 
 Calcul du CPU % : `100 × (1 − Δ(idle+iowait) / Δtotal)` entre deux relevés de `/proc/stat` conservés dans
 le fichier d'état de l'agent. Premier relevé, redémarrage ou compteur décroissant : `cpu_pct = null`.
 
-### Protocole
+### Protocole (implémenté, phase 3)
 
 ```
-POST {SUPABASE_URL}/rest/v1/rpc/heartbeat
-Content-Profile: agent_api
-apikey: <clé publique>
-x-agent-token: ikh_<id public>_<secret>        (via curl --header @fichier, jamais dans ps)
+POST {SUPABASE_URL}/rest/v1/rpc/agent_heartbeat
+apikey: <clé publique>                (exigée par la passerelle, non secrète)
+x-agent-token: ikh_<12 hex>_<64 hex>  (via curl -H @fichier 600, jamais dans ps)
+Prefer: params=single-object          (le corps JSON est le paramètre)
 ```
-
-Le serveur dérive hébergement et Cloud **uniquement du token** (SHA-256 du secret comparé au hash stocké),
-valide strictement le payload (≤ 16 Ko, bornes, `used ≤ total`, `ts` dans [now−24 h ; now+2 min]), applique
-le rate limit (≥ 20 s entre deux envois, sinon 429 via `SQLSTATE PT429`) puis répond :
 
 ```json
-{"ok": true, "server_time": 1767000000, "collector": true, "actions": []}
+{ "v": 1, "agent_version": "0.1.0", "hostname": "od-34b55c",
+  "agent": { "backlog": 0, "last_error": null, "log": { "size": 16733972, "inode": 12345 } },
+  "points": [ { "ts": 1767000000, "cpu_cores": 12, "load": [2.43, 3.13, 4.12], "cpu_pct": 15.1,
+                "mem": { "total_mb": 36093, "used_mb": 11937, "avail_mb": 24156 },
+                "swap": { "total_mb": 4095, "used_mb": 0 },
+                "disk": { "device": "/dev/mapper/vgdata-client", "total_mb": 281589, "used_mb": 141757, "avail_mb": 139843 },
+                "uptime_s": 1234567 } ] }
 ```
+
+Le serveur dérive hébergement et Cloud **uniquement du token** (SHA-256 du secret comparé au hash stocké ;
+ancien hash accepté pendant la période de grâce d'une rotation). Contrôles, dans l'ordre :
+
+| Contrôle | Résultat |
+|---|---|
+| Token absent, mal formé, inconnu, révoqué ou faux | 401 (message identique dans tous les cas) |
+| Hébergement désactivé | 403 |
+| Moins de 20 s depuis le dernier heartbeat | 429 |
+| Corps non objet, > 16 Ko, `v` ≠ 1, `points` non tableau ou > 30 | 400 |
+| Point invalide (bornes, `used ≤ total`, horodatage hors [now − 24 h ; now + 2 min]…) | point **ignoré** et compté dans `rejected`, sans bloquer les autres |
+
+Les relevés sont idempotents (clé primaire (Cloud, `ts`)) : rejouer un spool ne crée pas de doublon. Le serveur
+calcule les dérivés (`load1_per_core`, `*_used_pct`), met à jour l'état du Cloud et de l'hébergement, apprend le
+`hostname` et le nombre de cœurs du Cloud, puis répond :
+
+```json
+{"ok": true, "server_time": 1767000000, "collector": true, "accepted": 1, "rejected": 0, "actions": []}
+```
+
+### Agent : fonctionnement local (`agent/ik-agent.sh`)
+
+- Lancé par cron chaque minute (`nice -n 19`). Verrou sans fork (PID + vérification du nom du processus).
+- 1 fork obligatoire par minute (`curl`) ; `df`, `stat` et le comptage des cœurs seulement toutes les 5 minutes.
+- État dans `~/.ik-monitor/` (dossier 700, fichiers 600) : `config`, `state`, `spool` (30 relevés max),
+  `agent.log` (plafonné à 50 Ko, écrit uniquement lors d'un changement d'état).
+- Le rôle de collecteur vient de la réponse du serveur ; sans rôle, l'agent n'envoie qu'un heartbeat.
+- Échec réseau / 5xx / 401 : le spool conserve les relevés, renvoyés en lot ensuite dans l'ordre chronologique.
+- Installation : `install.sh` (téléchargement + vérification SHA-256, configuration, cron idempotent, sauvegarde de
+  la crontab). Le token est demandé en saisie masquée.
 
 ### Actions (`heartbeat` → `analyze_logs` → résultat)
 
@@ -271,8 +303,8 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 |---|---|---|
 | 0 | Tests terrain | Fait (CPU synchronisé + comparaison console à finaliser) |
 | 1 | Fondations : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | Fait |
-| **2** | **Inventaire et tokens** : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | **En cours de validation** |
-| 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_api.heartbeat`, spool, tests de fixtures `/proc`, mode observation | À faire |
+| 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | Fait |
+| **3** | **Agent + ingestion** : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, mode observation | **En cours de validation** |
 | 4 | Dashboard : cartes, détails, `get_series`, rollups, rétention, valeurs brutes | À faire |
 | 5 | Règles, statuts, silences, sondes | À faire |
 | 6 | Incidents et Discord, historique | À faire |

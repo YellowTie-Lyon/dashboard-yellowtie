@@ -104,3 +104,26 @@ Une fois connecté (rôle propriétaire) :
 Les migrations de `main` sont appliquées automatiquement par le workflow *Déployer les migrations* (une
 approbation peut être exigée via l'environnement GitHub `production`). Vérifiez son succès dans l'onglet
 **Actions** avant de tester l'interface.
+
+## Phase 3 : installer l'agent sur un hébergement
+
+À faire pour chaque hébergement (6 au total). Commencez par le **collecteur système** d'un Cloud.
+
+1. Dans YellowScope, ouvrez l'hébergement et générez (ou régénérez) son token. La fenêtre affiche aussi la
+   **commande d'installation** : copiez-la.
+2. Connectez-vous en SSH à l'hébergement (console Infomaniak > Web & Domaines > votre hébergement > SSH).
+3. Collez la commande d'installation (deux lignes). L'installeur vous demande le token : collez-le
+   (rien ne s'affiche, c'est normal). Il télécharge l'agent, vérifie sa somme de contrôle, écrit la configuration
+   (lecture seule pour vous), ajoute **une** ligne dans votre crontab (les autres tâches sont conservées) et
+   fait un premier envoi de test.
+4. Attendez 1 à 2 minutes : sur la page de l'hébergement, « État de l'agent » affiche le dernier heartbeat ;
+   sur la page du Cloud, « Dernier relevé système » affiche load, CPU, RAM, swap et disque (le CPU affiche « — »
+   au tout premier relevé, c'est normal : il se calcule entre deux relevés).
+
+Vérifications sur le serveur : `crontab -l` (une ligne `ik-monitor`), `cat ~/.ik-monitor/agent.log` (vide tant
+que tout va bien), `~/.ik-monitor/ik-agent.sh --dry-run` (affiche ce qui serait envoyé, sans rien envoyer).
+
+Désinstaller : `bash ik-install.sh --uninstall` (retire la ligne de cron et le dossier `~/.ik-monitor`).
+
+**Mode observation** : tant que la phase 5 n'est pas livrée, aucun statut ni alerte n'est calculé. Les valeurs
+servent à les comparer avec la console Infomaniak avant de fixer les seuils.

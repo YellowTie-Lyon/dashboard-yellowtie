@@ -11,6 +11,7 @@ import {
   deleteSite,
   fetchCloud,
   fetchHosting,
+  fetchHostingStates,
   fetchSites,
   importSites,
   revokeHostingToken,
@@ -20,7 +21,9 @@ import {
 } from '../features/inventory/api'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
-import { formatRelativeTime } from '../lib/format'
+import { formatBytes, formatRelativeTime } from '../lib/format'
+import { ANOMALY_LABELS } from '../lib/labels'
+import { useNow } from '../lib/useNow'
 import type { ImportSitesResult, Site } from '../lib/types'
 
 export function HostingPage() {
@@ -37,6 +40,12 @@ export function HostingPage() {
     enabled: Boolean(cloudId),
   })
   const sites = useQuery({ queryKey: ['sites', hostingId], queryFn: () => fetchSites(hostingId) })
+  const agentState = useQuery({
+    queryKey: ['hosting-state', hostingId],
+    queryFn: async () => (await fetchHostingStates([hostingId]))[0] ?? null,
+    refetchInterval: 30_000,
+  })
+  const now = useNow()
 
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -164,9 +173,44 @@ export function HostingPage() {
             <dd className="inline">{h.probe_url ?? 'non configurée'}</dd>
           </div>
         </dl>
-        <p className={`mt-2 ${mutedText}`}>
-          État de l'agent : aucun heartbeat reçu (l'agent arrive en phase 3). Les métriques CPU / RAM / load ne
-          sont pas propres à l'hébergement : elles appartiennent à son Server Cloud.
+      </div>
+
+      {/* État de l'agent */}
+      <div className={card}>
+        <h2 className="font-semibold">État de l'agent</h2>
+        {!agentState.data && (
+          <p className={`mt-1 ${mutedText}`}>
+            Aucun heartbeat reçu. Générez le token puis installez l'agent sur cet hébergement (voir docs/setup.md).
+          </p>
+        )}
+        {agentState.data && (
+          <>
+            <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+              {(
+                [
+                  ['Dernier heartbeat', formatRelativeTime(agentState.data.last_seen_at, now)],
+                  ['Version de l’agent', agentState.data.agent_version ?? '—'],
+                  ['Hostname vu par l’agent', agentState.data.hostname_seen ?? '—'],
+                  ['Relevés en attente d’envoi', String(agentState.data.backlog ?? 0)],
+                  ['Taille de l’access.log', formatBytes(agentState.data.log_size_bytes)],
+                  ['Dernière erreur locale', agentState.data.last_error ?? 'aucune'],
+                ] as [string, string][]
+              ).map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-3 border-b border-slate-100 pb-1 dark:border-slate-800">
+                  <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+                  <dd className="text-right font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            {agentState.data.anomaly && (
+              <p role="alert" className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                {ANOMALY_LABELS[agentState.data.anomaly] ?? `Anomalie : ${agentState.data.anomaly}`}
+              </p>
+            )}
+          </>
+        )}
+        <p className={`mt-3 text-xs ${mutedText}`}>
+          Les métriques CPU / RAM / load ne sont pas propres à l'hébergement : elles appartiennent à son Server Cloud.
         </p>
       </div>
 

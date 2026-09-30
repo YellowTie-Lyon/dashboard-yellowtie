@@ -1,5 +1,13 @@
 import { getSupabase } from '../../lib/supabase'
-import type { CloudServer, CloudWithCounts, ImportSitesResult, Site, WebHosting } from '../../lib/types'
+import type {
+  CloudServer,
+  CloudState,
+  CloudWithCounts,
+  HostingState,
+  ImportSitesResult,
+  Site,
+  WebHosting,
+} from '../../lib/types'
 
 // Toutes les fonctions lèvent l'erreur PostgREST telle quelle ; l'UI la traduit via errorMessage().
 
@@ -140,3 +148,18 @@ export async function deleteSite(siteId: string): Promise<void> {
 
 export const sitesCount = (rows: { sites: { count: number }[] }[]): number =>
   rows.reduce((total, row) => total + (row.sites[0]?.count ?? 0), 0)
+
+// --- État des agents et derniers relevés (alimentés par agent_heartbeat) ---------------------------------
+
+export async function fetchCloudStates(): Promise<CloudState[]> {
+  const { data, error } = await getSupabase().from('cloud_server_state').select('*')
+  if (error) throw error
+  return data as CloudState[]
+}
+
+export async function fetchHostingStates(hostingIds: string[]): Promise<HostingState[]> {
+  if (hostingIds.length === 0) return []
+  const { data, error } = await getSupabase().from('web_hosting_state').select('*').in('web_hosting_id', hostingIds)
+  if (error) throw error
+  return data as HostingState[]
+}

@@ -8,6 +8,8 @@ import { btn, btnDanger, btnPrimary, card, mutedText } from '../components/ui'
 import {
   deleteCloud,
   fetchCloud,
+  fetchCloudStates,
+  fetchHostingStates,
   fetchHostings,
   setSystemCollector,
   sitesCount,
@@ -15,7 +17,9 @@ import {
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
+import { MetricsCard } from '../components/MetricsCard'
 import { formatRelativeTime } from '../lib/format'
+import { useNow } from '../lib/useNow'
 
 export function CloudPage() {
   const { cloudId = '' } = useParams()
@@ -25,6 +29,15 @@ export function CloudPage() {
 
   const cloud = useQuery({ queryKey: ['cloud', cloudId], queryFn: () => fetchCloud(cloudId) })
   const hostings = useQuery({ queryKey: ['hostings', cloudId], queryFn: () => fetchHostings(cloudId) })
+  const hostingIds = (hostings.data ?? []).map((h) => h.id)
+  const hostingStates = useQuery({
+    queryKey: ['hosting-states', cloudId, hostingIds],
+    queryFn: () => fetchHostingStates(hostingIds),
+    enabled: hostings.isSuccess,
+    refetchInterval: 30_000,
+  })
+  const cloudStates = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: 30_000 })
+  const now = useNow()
 
   const [editing, setEditing] = useState(false)
   const [addingHosting, setAddingHosting] = useState(false)
@@ -58,6 +71,8 @@ export function CloudPage() {
 
   const c = cloud.data
   const rows = hostings.data ?? []
+  const seenById = new Map((hostingStates.data ?? []).map((st) => [st.web_hosting_id, st]))
+  const cloudState = (cloudStates.data ?? []).find((st) => st.cloud_server_id === c.id) ?? null
   const hasCollector = rows.some((h) => h.system_metrics_collector && h.is_active)
 
   return (
@@ -112,6 +127,8 @@ export function CloudPage() {
         {c.notes && <p className={`mt-2 ${mutedText}`}>{c.notes}</p>}
       </div>
 
+      <MetricsCard state={cloudState} offlineAfterSeconds={c.offline_after_seconds} now={now} />
+
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -165,6 +182,17 @@ export function CloudPage() {
                     <span className="text-slate-500 dark:text-slate-400">
                       · {h.sites[0]?.count ?? 0} site{(h.sites[0]?.count ?? 0) > 1 ? 's' : ''}
                     </span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      ·{' '}
+                      {seenById.get(h.id)
+                        ? `agent vu ${formatRelativeTime(seenById.get(h.id)!.last_seen_at, now)}`
+                        : 'aucun heartbeat reçu'}
+                    </span>
+                    {seenById.get(h.id)?.anomaly && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        Anomalie
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -190,8 +218,8 @@ export function CloudPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className={`${card} border-dashed`}>
-          <h2 className="font-semibold">Métriques et graphiques</h2>
-          <p className={mutedText}>Disponibles en phase 4, une fois les agents installés.</p>
+          <h2 className="font-semibold">Graphiques historiques</h2>
+          <p className={mutedText}>Disponibles en phase 4 (1 h, 6 h, 24 h, 7 j, 30 j).</p>
         </div>
         <div className={`${card} border-dashed`}>
           <h2 className="font-semibold">Incidents et diagnostics de trafic</h2>

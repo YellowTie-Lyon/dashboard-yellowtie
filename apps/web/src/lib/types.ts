@@ -56,3 +56,45 @@ export interface ImportSitesResult {
   existing: number
   invalid: string[]
 }
+
+/** Dernier relevé système d'un Server Cloud (calculé et stocké par agent_heartbeat). */
+export interface MetricsPoint {
+  ts: number
+  cpu_cores: number
+  load1: number
+  load5: number
+  load15: number
+  load1_per_core: number
+  cpu_pct: number | null
+  mem_total_mb: number
+  mem_used_mb: number
+  mem_avail_mb: number
+  mem_used_pct: number
+  swap_total_mb: number
+  swap_used_mb: number
+  swap_used_pct: number
+  disk_total_mb: number
+  disk_used_mb: number
+  disk_avail_mb: number
+  disk_used_pct: number
+  uptime_s: number
+}
+
+export interface CloudState {
+  cloud_server_id: string
+  last_metrics_at: string
+  last_received_at: string
+  last_point: MetricsPoint
+}
+
+export interface HostingState {
+  web_hosting_id: string
+  last_seen_at: string
+  agent_version: string | null
+  hostname_seen: string | null
+  backlog: number | null
+  last_error: string | null
+  log_size_bytes: number | null
+  log_inode: number | null
+  anomaly: string | null
+}

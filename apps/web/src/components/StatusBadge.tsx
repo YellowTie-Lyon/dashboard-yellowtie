@@ -21,6 +21,10 @@ const STYLES: Record<ServerStatus, { dot: string; badge: string }> = {
     dot: 'bg-slate-400',
     badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
   },
+  observing: {
+    dot: 'bg-sky-500',
+    badge: 'bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  },
 }
 
 /** Pastille de statut. La couleur n'est jamais le seul vecteur : le libellé est toujours affiché. */

@@ -2,15 +2,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CloudWithCounts } from '../lib/types'
+import type { CloudState, CloudWithCounts } from '../lib/types'
 import { DashboardPage } from './DashboardPage'
 
 const fetchClouds = vi.fn<() => Promise<CloudWithCounts[]>>()
+const fetchCloudStates = vi.fn<() => Promise<CloudState[]>>()
 let canWrite = true
 
 vi.mock('../features/inventory/api', async () => {
   const actual = await vi.importActual<typeof import('../features/inventory/api')>('../features/inventory/api')
-  return { ...actual, fetchClouds: () => fetchClouds() }
+  return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates() }
 })
 vi.mock('../features/workspace/useWorkspace', () => ({
   useWorkspace: () => ({
@@ -55,6 +56,8 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     canWrite = true
     fetchClouds.mockReset()
+    fetchCloudStates.mockReset()
+    fetchCloudStates.mockResolvedValue([])
   })
 
   it('affiche l’état vide quand aucun Cloud n’existe', async () => {
@@ -88,5 +91,45 @@ describe('DashboardPage', () => {
     renderPage()
     await screen.findByText('Aucun Server Cloud configuré')
     expect(screen.queryByRole('button', { name: /Ajouter un Server Cloud/ })).not.toBeInTheDocument()
+  })
+
+  it('affiche les valeurs du dernier relevé et le mode observation', async () => {
+    fetchClouds.mockResolvedValue([cloud({ web_hostings: [{ id: 'h1', sites: [{ count: 3 }] }] })])
+    const nowIso = new Date().toISOString()
+    fetchCloudStates.mockResolvedValue([
+      {
+        cloud_server_id: 'c1',
+        last_metrics_at: nowIso,
+        last_received_at: nowIso,
+        last_point: {
+          ts: Math.floor(Date.now() / 1000),
+          cpu_cores: 12,
+          load1: 2.43,
+          load5: 3.13,
+          load15: 4.12,
+          load1_per_core: 0.203,
+          cpu_pct: 15.1,
+          mem_total_mb: 36093,
+          mem_used_mb: 11937,
+          mem_avail_mb: 24156,
+          mem_used_pct: 33.1,
+          swap_total_mb: 4095,
+          swap_used_mb: 0,
+          swap_used_pct: 0,
+          disk_total_mb: 281589,
+          disk_used_mb: 141757,
+          disk_avail_mb: 139843,
+          disk_used_pct: 50.3,
+          uptime_s: 1234567,
+        },
+      },
+    ])
+    renderPage()
+    expect(await screen.findByText('En observation')).toBeInTheDocument()
+    expect(screen.getByText('15,1 %')).toBeInTheDocument()
+    expect(screen.getByText('2,43')).toBeInTheDocument()
+    expect(screen.getByText('33,1 %')).toBeInTheDocument()
+    expect(screen.getByText('50,3 %')).toBeInTheDocument()
+    expect(screen.getByText(/Dernière donnée : à l'instant/)).toBeInTheDocument()
   })
 })
