@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/
+
+# Agent : configuration locale contenant un token (ne jamais commiter)
+agent/*.conf
+agent/.ik-monitor/
+
+# Divers
+.DS_Store
+*.log
+.netlify/
+coverage/
