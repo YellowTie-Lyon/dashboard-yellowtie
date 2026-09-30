@@ -5,7 +5,9 @@ import { AuthProvider } from './features/auth/AuthProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { ConfigErrorPage } from './pages/ConfigErrorPage'
+import { CloudPage } from './pages/CloudPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { HostingPage } from './pages/HostingPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
@@ -25,6 +27,8 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route index element={<DashboardPage />} />
+                <Route path="clouds/:cloudId" element={<CloudPage />} />
+                <Route path="hostings/:hostingId" element={<HostingPage />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFoundPage />} />

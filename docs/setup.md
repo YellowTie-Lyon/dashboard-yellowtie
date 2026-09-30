@@ -86,3 +86,21 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 Tests SQL en local (Docker requis) : `supabase start && supabase test db`.
+
+## Phase 2 : saisir l'inventaire
+
+Une fois connecté (rôle propriétaire) :
+
+1. **Server Clouds → Ajouter un Server Cloud** : nom, nombre de vCPU (12 pour vos Clouds actuels), seuil offline
+   (240 s par défaut).
+2. Ouvrez le Cloud, **Ajouter un hébergement** (par exemple `Web-Cloud-YellowTie-1`). Le premier hébergement d'un
+   Cloud devient automatiquement son **collecteur système** ; vous pouvez en désigner un autre à tout moment.
+3. Ouvrez l'hébergement : **Générer le token**. Il n'est affiché **qu'une seule fois** : copiez-le tout de suite
+   dans votre gestionnaire de mots de passe. Il servira à installer l'agent (phase 3).
+4. **Importer des domaines** : collez la liste des sites de l'hébergement (un par ligne). Utilisez le nom tel
+   qu'il apparaît dans le premier champ de `~/ik-logs/access.log` (avec `www.` si c'est le cas).
+5. Optionnel : renseignez l'URL de sonde (HTTPS) de l'hébergement. Un petit fichier statique est conseillé.
+
+Les migrations de `main` sont appliquées automatiquement par le workflow *Déployer les migrations* (une
+approbation peut être exigée via l'environnement GitHub `production`). Vérifiez son succès dans l'onglet
+**Actions** avant de tester l'interface.

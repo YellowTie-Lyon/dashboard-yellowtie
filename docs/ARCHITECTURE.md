@@ -185,9 +185,19 @@ et incidents se calculent quand même. Les seuils par défaut sont des valeurs d
 
 **Tenancy** : `workspaces`, `workspace_members` *(implémenté, phase 1)*.
 
-**Inventaire** : `cloud_servers`, `web_hostings` (token = `token_public_id` + `token_hash`, hash précédent
-avec période de grâce pour la rotation), `sites` (unique par (hébergement, domaine) ; domaines découverts
-marqués non vérifiés et plafonnés, car un scanner peut envoyer des `Host:` arbitraires).
+**Inventaire** *(implémenté, phase 2)* : `cloud_servers`, `web_hostings`, `sites`, `audit_log`.
+- Le token d'agent a la forme `ikh_<12 hex publics>_<64 hex secrets>`. `web_hostings` ne porte que la partie
+  publique (`token_public_id`, `token_active`) ; les hash vivent dans `web_hosting_credentials`, table
+  **sans aucun droit pour le client** (accessible seulement aux fonctions `SECURITY DEFINER`). Seul le SHA-256
+  du secret est stocké, avec le hash précédent et son échéance pour la rotation « en douceur » (24 h par défaut).
+- Le client n'écrit que des colonnes explicitement autorisées (GRANT par colonne). `workspace_id` est dérivé du
+  Server Cloud parent par trigger, `system_metrics_collector` et les champs de token ne s'écrivent que par RPC.
+- RPC (propriétaire requis) : `rotate_hosting_token`, `revoke_hosting_token`, `set_system_collector`
+  (atomique ; le 1ᵉʳ hébergement d'un Cloud est désigné automatiquement), `import_sites` (normalisation,
+  doublons ignorés, ≤ 500 domaines ; le domaine est conservé tel quel, `www.` inclus, pour correspondre au
+  vhost des logs).
+- `sites` : unique par (hébergement, domaine) ; les domaines découverts dans les logs (phase 7) seront
+  marqués non vérifiés et plafonnés, car un scanner peut envoyer des `Host:` arbitraires.
 
 **État chaud** : `cloud_server_state` (Realtime), `web_hosting_state` (polling).
 
@@ -260,8 +270,8 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 | Phase | Contenu | État |
 |---|---|---|
 | 0 | Tests terrain | Fait (CPU synchronisé + comparaison console à finaliser) |
-| **1** | **Fondations** : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | **En cours** |
-| 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, rotation de token, commande d'installation | À faire |
+| 1 | Fondations : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | Fait |
+| **2** | **Inventaire et tokens** : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | **En cours de validation** |
 | 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_api.heartbeat`, spool, tests de fixtures `/proc`, mode observation | À faire |
 | 4 | Dashboard : cartes, détails, `get_series`, rollups, rétention, valeurs brutes | À faire |
 | 5 | Règles, statuts, silences, sondes | À faire |

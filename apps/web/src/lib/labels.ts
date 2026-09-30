@@ -6,13 +6,14 @@
  * Aucun autre fichier ne doit écrire ces formulations en dur.
  */
 
-export type ServerStatus = 'normal' | 'warning' | 'critical' | 'offline'
+export type ServerStatus = 'normal' | 'warning' | 'critical' | 'offline' | 'unknown'
 
 export const STATUS_LABELS: Record<ServerStatus, string> = {
   normal: 'Normal',
   warning: 'Warning',
   critical: 'Critical',
   offline: 'Offline',
+  unknown: 'Aucune donnée',
 }
 
 export const TRAFFIC_LABELS = {
