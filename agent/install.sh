@@ -108,13 +108,15 @@ chmod 600 "$DIR/config"
 # --- Cron : une ligne, idempotente, avec sauvegarde de la crontab existante -------------------------------
 current=$(crontab -l 2>/dev/null || true)
 printf '%s\n' "$current" >"$DIR/crontab.bak"
-line="* * * * * nice -n 19 $DIR/ik-agent.sh >/dev/null 2>&1"
+# Priorité NORMALE pour l'envoi (quelques millisecondes de CPU) : sur un serveur saturé, une priorité basse empêcherait l'agent d'envoyer au moment où
+# l'information est la plus utile. Seule l'analyse des logs, la partie qui coûte un peu, tourne en priorité basse (voir ik-agent.sh).
+line="* * * * * $DIR/ik-agent.sh >/dev/null 2>&1"
 if [[ -n $current ]]; then
   { printf '%s\n' "$current" | grep -v "$CRON_MARK" || true; printf '%s\n' "$line"; } | crontab -
 else
   printf '%s\n' "$line" | crontab -
 fi
-info "Tâche cron installée (toutes les minutes, priorité basse). Ancienne crontab sauvegardée dans $DIR/crontab.bak"
+info "Tâche cron installée (toutes les minutes). Ancienne crontab sauvegardée dans $DIR/crontab.bak"
 
 if ((RUN_NOW)); then
   info "Premier envoi de test :"

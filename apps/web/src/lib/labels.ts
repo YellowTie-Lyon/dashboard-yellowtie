@@ -28,6 +28,8 @@ export const TRAFFIC_LABELS = {
 export const ANOMALY_LABELS: Record<string, string> = {
   points_ignored:
     "Cet agent envoie des relevés système alors qu'il n'est pas le collecteur de son Cloud : ils sont ignorés.",
+  backup_collector:
+    "Cet agent relaie temporairement les relevés système : le collecteur habituel du Cloud ne répond plus (étouffé ou arrêté).",
   hostname_mismatch:
     "Le hostname de cet agent diffère de celui de son Server Cloud : vérifiez que l'hébergement est rattaché au bon Cloud.",
 }

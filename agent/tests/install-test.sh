@@ -8,6 +8,7 @@ PASS=0; FAIL=0
 check() { local d=$1; shift; if "$@"; then PASS=$((PASS + 1)); else FAIL=$((FAIL + 1)); echo "  ÉCHEC : $d"; fi; }
 eq() { [[ "$1" == "$2" ]] || { echo "    attendu : [$2]  obtenu : [$1]"; return 1; }; }
 has() { [[ "$1" == *"$2"* ]] || { echo "    [$2] introuvable dans : ${1:0:300}"; return 1; }; }
+hasnt() { [[ "$1" != *"$2"* ]] || { echo "    [$2] ne devrait pas apparaître"; return 1; }; }
 
 new_env() {
   T="$(mktemp -d)"
@@ -42,7 +43,8 @@ check "config contient l'URL, la clé et le token" eq "$(grep -c '^IK_' "$IK_HOM
 check "une seule ligne cron pour l'agent" eq "$(grep -c 'ik-monitor/ik-agent.sh' "$MOCK_CRON")" 1
 check "les autres tâches cron sont conservées" has "$(cat "$MOCK_CRON")" "0 3 * * * /usr/bin/backup.sh"
 check "la crontab d'origine est sauvegardée" has "$(cat "$IK_HOME/.ik-monitor/crontab.bak")" "backup.sh"
-check "priorité basse et sortie muette" has "$(cat "$MOCK_CRON")" "nice -n 19"
+check "sortie muette" has "$(cat "$MOCK_CRON")" ">/dev/null 2>&1"
+check "envoi en priorité normale (pas de nice dans le cron)" hasnt "$(cat "$MOCK_CRON")" "nice"
 check "le token n'est pas affiché" eq "$([[ $out == *"$TOKEN"* ]] && echo leak || echo ok)" ok
 
 install_cmd >/dev/null 2>&1

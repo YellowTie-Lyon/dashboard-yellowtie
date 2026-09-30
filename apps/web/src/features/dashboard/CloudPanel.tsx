@@ -17,7 +17,7 @@ import { TopDomains } from './TopDomains'
 
 // Par défaut 15 minutes : le classement suit la charge du moment, comme le load (mis à jour chaque minute).
 // Dernière version de l'agent publiée avec le site (agent/ik-agent.sh) : une version plus ancienne est signalée en orange.
-const LATEST_AGENT_VERSION = '0.3.1'
+const LATEST_AGENT_VERSION = '0.4.0'
 const WINDOWS = [
   { minutes: 15, label: '15 min' },
   { minutes: 60, label: '1 h' },
@@ -176,7 +176,7 @@ export function CloudPanel({
             <TopDomains rows={rows} minutes={windowMin} compact={tv} />
           ) : (
             <p className="text-sm text-slate-500">
-              {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.3.1 est installé (analyse chaque minute)."}
+              {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.4.0 est installé (analyse chaque minute)."}
             </p>
           )}
         </div>

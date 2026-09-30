@@ -424,7 +424,10 @@ collect_traffic() {
   if ((sz - off > cap)); then off=$((sz - cap)); skip=1; trunc=1; fi
   limit=$((sz - off))
 
-  out=$(tail -c "+$((off + 1))" -- "$IK_LOG_PATH" 2>/dev/null | awk -v LIMIT="$limit" -v SKIP1="$skip" -v TS="$now" -v WIN="$TRAFFIC_EVERY_S" -v TRUNC="$trunc" "$AWK_TRAFFIC" 2>/dev/null)
+  # L'analyse (la partie qui coûte un peu de CPU) tourne en priorité basse ; l'envoi du heartbeat, lui, garde la priorité normale.
+  local -a lowprio=()
+  command -v nice >/dev/null 2>&1 && lowprio=(nice -n 19)
+  out=$(${lowprio[@]+"${lowprio[@]}"} tail -c "+$((off + 1))" -- "$IK_LOG_PATH" 2>/dev/null | ${lowprio[@]+"${lowprio[@]}"} awk -v LIMIT="$limit" -v SKIP1="$skip" -v TS="$now" -v WIN="$TRAFFIC_EVERY_S" -v TRUNC="$trunc" "$AWK_TRAFFIC" 2>/dev/null)
   if [[ $out != '{"ts":'*'}' || ${#out} -gt 15000 ]]; then note_error "analyse du trafic invalide"; return 0; fi
   cb=0; [[ $out =~ \"cb\":([0-9]+) ]] && cb=${BASH_REMATCH[1]}
   newoff=$((off + cb))
@@ -506,7 +509,7 @@ main() {
 
   # --- Envoi : le token ne passe jamais dans la ligne de commande (visible via ps) mais dans un fichier 600.
   { printf 'x-agent-token: %s\n' "$IK_TOKEN"; printf 'apikey: %s\n' "$IK_API_KEY"; } >"$HDR"
-  code=$(curl -sS -o "$RESP" -w '%{http_code}' --connect-timeout 5 --max-time 10 --retry 0 \
+  code=$(curl -sS -o "$RESP" -w '%{http_code}' --connect-timeout 8 --max-time 25 --retry 0 \
     -X POST -H "@$HDR" -H 'Content-Type: application/json' \
     --data-binary "$body" "$IK_API_URL/rest/v1/rpc/agent_heartbeat" 2>"$CURL_ERR")
   code=${code:-000}

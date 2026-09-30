@@ -113,7 +113,7 @@ check "relevés conservés malgré le 401" eq "$(spool_lines)" 3
 check "le token n'apparaît jamais dans les arguments de curl" hasnt "$(cat "$MOCK_LOG")" "ikh_"
 check "le token est transmis par fichier d'en-têtes" has "$(cat "$MOCK_HDRS")" "x-agent-token: $TOKEN"
 check "connexion HTTPS sur le bon point d'entrée" has "$(cat "$MOCK_LOG")" "https://example.supabase.co/rest/v1/rpc/agent_heartbeat"
-check "délais d'attente réseau présents" has "$(cat "$MOCK_LOG")" "--max-time 10"
+check "délais d'attente réseau présents" has "$(cat "$MOCK_LOG")" "--max-time 25"
 check "l'erreur est remontée au serveur" has "$(body)" "authentification refusee"
 export MOCK_HTTP_CODE=200 MOCK_BODY='{"ok": true, "collector": true, "actions": []}' IK_NOW=4000180; "$AGENT"
 check "reprise journalisée" has "$(cat "$IK_STATE_DIR/agent.log")" "envois rétablis"
