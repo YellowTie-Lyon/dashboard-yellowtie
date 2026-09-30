@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { ErrorNote } from '../../components/ErrorNote'
 import { card, labelMono, mutedText } from '../../components/ui'
 import { TRAFFIC_LABELS } from '../../lib/labels'
-import { LIVE } from '../../lib/live'
 import { formatCount, formatShare } from '../../lib/traffic'
 import { fetchIncidentTraffic } from './api'
 
@@ -12,7 +11,7 @@ import { fetchIncidentTraffic } from './api'
  * (« potentiellement impliqués »), jamais un verdict : un volume élevé peut être normal (campagne, Googlebot…).
  */
 export function IncidentTraffic({ incidentId, open }: { incidentId: string; open: boolean }) {
-  const q = useQuery({ queryKey: ['incident-traffic', incidentId], queryFn: () => fetchIncidentTraffic(incidentId), refetchInterval: open ? LIVE.slow : false })
+  const q = useQuery({ queryKey: ['incident-traffic', incidentId], queryFn: () => fetchIncidentTraffic(incidentId), meta: { static: !open } })
   const t = q.data
   const maxDomain = Math.max(1, ...(t?.domains ?? []).map((d) => d.requests))
 

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
+import { LiveSync } from './components/LiveSync'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { isSupabaseConfigured } from './lib/supabase'
@@ -15,7 +16,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 const queryClient = new QueryClient({
-  // Actualisation automatique : au retour sur l'onglet, à la reconnexion réseau et périodiquement (voir lib/live.ts).
+  // Actualisation automatique : au retour sur l'onglet, à la reconnexion réseau et périodiquement, tout en même temps (voir lib/live.ts).
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, refetchOnReconnect: true } },
 })
 
@@ -24,6 +25,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <LiveSync />
       <AuthProvider>
         <BrowserRouter>
           <Routes>

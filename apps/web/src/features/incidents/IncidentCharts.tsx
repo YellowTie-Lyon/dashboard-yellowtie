@@ -5,7 +5,6 @@ import { ErrorNote } from '../../components/ErrorNote'
 import { bandFor, incidentEnd } from '../../lib/incidents'
 import { buildRows, windowSpec } from '../../lib/series'
 import type { Incident } from '../../lib/types'
-import { LIVE } from '../../lib/live'
 import { ChartGrid } from '../metrics/ChartGrid'
 import { fetchSeriesWindow } from './api'
 
@@ -23,7 +22,7 @@ export function IncidentCharts({ incident, cores, now }: { incident: Incident; c
     queryKey: ['incident-series', incident.cloud_server_id, from, to],
     queryFn: () => fetchSeriesWindow(incident.cloud_server_id, new Date(from).toISOString(), new Date(to).toISOString()),
     placeholderData: keepPreviousData,
-    refetchInterval: incident.status === 'closed' ? false : LIVE.normal,
+    meta: { static: incident.status === 'closed' },
   })
   const rows = useMemo(() => buildRows(series.data ?? [], spec.stepMs), [series.data, spec.stepMs])
 
