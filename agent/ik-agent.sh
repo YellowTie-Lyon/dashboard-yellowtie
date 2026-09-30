@@ -14,7 +14,7 @@
 # Usage : ik-agent.sh [--verbose] [--dry-run] | --version | --help
 set -u
 
-readonly AGENT_VERSION="0.3.1"
+readonly AGENT_VERSION="0.4.0"
 readonly MAX_SPOOL=30
 readonly SLOW_REFRESH_S=300     # df / stat / cœurs : toutes les 5 minutes
 readonly MAX_CPU_GAP_S=300      # au-delà, l'écart entre deux relevés rend le CPU % trompeur
@@ -262,7 +262,25 @@ save_spool() {
 # ---------------------------------------------------------------------------------------------------
 read -r -d '' AWK_TRAFFIC <<'EOF' || true
 function pick(arr,   k, best, bk) { best = -1; bk = ""; for (k in arr) if (arr[k] > best) { best = arr[k]; bk = k } return bk }
-BEGIN { FS = "\""; cb = 0; RE_BAD = "[^A-Za-z0-9._~:/?@!$&()*+,;=%-]" }
+# Signature d'une query string : NOMS des paramètres (jamais les valeurs), triés, 6 au plus (« filter_couleur,min_price,orderby »).
+function qsig(qs,   n, parts, i, nm, e, cnt, names, j, out, seen, tot) {
+  n = split(qs, parts, "&"); cnt = 0; tot = 0
+  for (i = 1; i <= n && i <= 12; i++) {
+    nm = parts[i]; e = index(nm, "="); if (e > 0) nm = substr(nm, 1, e - 1)
+    gsub(/[^A-Za-z0-9_.-]/, "", nm)
+    if (nm == "") continue
+    if (length(nm) > 24) nm = substr(nm, 1, 24)
+    if (nm in seen) continue
+    seen[nm] = 1; tot++
+    if (cnt < 6) { cnt++; names[cnt] = nm }
+  }
+  for (i = 2; i <= cnt; i++) { nm = names[i]; j = i - 1; while (j >= 1 && names[j] > nm) { names[j + 1] = names[j]; j-- } names[j + 1] = nm }
+  out = ""
+  for (i = 1; i <= cnt; i++) out = out (i > 1 ? "," : "") names[i]
+  if (tot > cnt) out = out ",+"
+  return out
+}
+BEGIN { FS = "\""; cb = 0; RE_BAD = "[^A-Za-z0-9._~:/?@!$&()*+,;=%-]"; RE_UA = "[^A-Za-z0-9 ._/;:()+,-]" }
 {
   len = length($0) + 1
   if (cb + len > LIMIT) exit
@@ -282,13 +300,9 @@ BEGIN { FS = "\""; cb = 0; RE_BAD = "[^A-Za-z0-9._~:/?@!$&()*+,;=%-]" }
   ip = a[2]
   if (ip !~ /^[0-9a-fA-F:.]+$/ || length(ip) > 45) ip = "?"
   path = r[2]
+  sig = ""
   q = index(path, "?")
-  if (q > 0) {
-    rest = substr(path, q + 1); path = substr(path, 1, q - 1)
-    e = index(rest, "="); if (e > 0) rest = substr(rest, 1, e - 1)
-    e = index(rest, "&"); if (e > 0) rest = substr(rest, 1, e - 1)
-    path = path "?" rest
-  }
+  if (q > 0) { sig = qsig(substr(path, q + 1)); path = substr(path, 1, q - 1) }
   if (path == "") path = "/"
   gsub(RE_BAD, "_", path)
   if (length(path) > 100) path = substr(path, 1, 100)
@@ -300,36 +314,69 @@ BEGIN { FS = "\""; cb = 0; RE_BAD = "[^A-Za-z0-9._~:/?@!$&()*+,;=%-]" }
   else if (ua ~ /bot|crawl|spider|slurp|facebookexternalhit|semrush|ahrefs|bytespider|petalbot|headless|python|curl|wget|scrapy|go-http|libwww|okhttp/) { ub++; bot = 1 }
   else if (ua == "" || ua == "-") ue++
   else uh++
+  uk = $6; gsub(RE_UA, "_", uk)
+  if (uk == "" || uk == "-") uk = "(vide)"
+  if (length(uk) > 70) uk = substr(uk, 1, 70)
 
   if (!(vh in dn) && nd >= 300) vh = "(autre)"
   if (!(vh in dn)) { nd++; dn[vh] = 0; db[vh] = 0 }
   dn[vh]++; db[vh] += nb; dbt[vh] += bot
   if (c == "2") d2[vh]++; else if (c == "3") d3[vh]++; else if (c == "4") d4[vh]++; else if (c == "5") d5[vh]++
-  if (r[1] == "POST") { dm[vh]++; tm++ }
+  if (code == "404") d404[vh]++; else if (code == "401" || code == "403") d403[vh]++
+  post = (r[1] == "POST")
+  if (post) { dm[vh]++; tm++ }
   tot++; tb += nb
   if (c == "2") t2++; else if (c == "3") t3++; else if (c == "4") t4++; else if (c == "5") t5++
 
-  pk = vh "\t" path
-  if (pk in pn || np < 20000) { if (!(pk in pn)) np++; pn[pk]++; if (c == "4" || c == "5") pe[pk]++ }
+  pk = vh "\t" path (sig != "" ? "?" sig : "")
+  if (pk in pn || np < 20000) {
+    if (!(pk in pn)) { np++; dpc[vh]++ }
+    pn[pk]++; if (c == "4" || c == "5") pe[pk]++; if (post) pm[pk]++
+  }
+  if (sig != "") { qk = vh "\t" sig; if (qk in qn || nq < 5000) { if (!(qk in qn)) nq++; qn[qk]++; if (c == "4" || c == "5") qe[qk]++ } }
   if (ip in ipn || ni < 20000) { if (!(ip in ipn)) ni++; ipn[ip]++ }
+  xk = ip "|" vh
+  if (xk in xn || nx < 20000) { if (!(xk in xn)) nx++; xn[xk]++ }
+  if (uk in uan || nua < 2000) { if (!(uk in uan)) nua++; uan[uk]++ }
 }
 END {
   out = sprintf("{\"ts\":%d,\"win\":%d,\"cb\":%d,\"lines\":%d,\"bad\":%d,\"trunc\":%d,\"n\":%d,\"b\":%.0f,\"s\":[%d,%d,%d,%d],\"m\":%d,\"ua\":{\"g\":%d,\"b\":%d,\"h\":%d,\"e\":%d},\"d\":[",
     TS, WIN, cb, lines, bad, TRUNC, tot, tb, t2, t3, t4, t5, tm, ug, ub, uh, ue)
-  sep = ""
+  sep = ""; dmo = ""; dsep = ""
   for (i = 0; i < 30; i++) {
     k = pick(dn); if (k == "") break
     out = out sprintf("%s{\"h\":\"%s\",\"n\":%d,\"b\":%.0f,\"s\":[%d,%d,%d,%d],\"m\":%d,\"bt\":%d}", sep, k, dn[k], db[k], d2[k], d3[k], d4[k], d5[k], dm[k], dbt[k])
+    if (i < 10) { dmo = dmo sprintf("%s{\"h\":\"%s\",\"pc\":%d,\"n4\":%d,\"n3\":%d}", dsep, k, dpc[k], d404[k], d403[k]); dsep = "," }
     sep = ","; delete dn[k]
   }
   out = out "],\"u\":["; sep = ""
   for (i = 0; i < 15; i++) {
     k = pick(pn); if (k == "") break
     split(k, kk, "\t")
-    out = out sprintf("%s{\"h\":\"%s\",\"p\":\"%s\",\"n\":%d,\"e\":%d}", sep, kk[1], kk[2], pn[k], pe[k])
+    out = out sprintf("%s{\"h\":\"%s\",\"p\":\"%s\",\"n\":%d,\"e\":%d,\"m\":%d}", sep, kk[1], kk[2], pn[k], pe[k], pm[k])
     sep = ","; delete pn[k]
   }
-  out = out "],\"i\":["; sep = ""
+  out = out "],\"q\":["; sep = ""
+  for (i = 0; i < 12; i++) {
+    k = pick(qn); if (k == "") break
+    split(k, kk, "\t")
+    out = out sprintf("%s{\"h\":\"%s\",\"q\":\"%s\",\"n\":%d,\"e\":%d}", sep, kk[1], kk[2], qn[k], qe[k])
+    sep = ","; delete qn[k]
+  }
+  out = out "],\"a\":["; sep = ""
+  for (i = 0; i < 10; i++) {
+    k = pick(uan); if (k == "") break
+    out = out sprintf("%s{\"ua\":\"%s\",\"n\":%d}", sep, k, uan[k])
+    sep = ","; delete uan[k]
+  }
+  out = out "],\"x\":["; sep = ""
+  for (i = 0; i < 10; i++) {
+    k = pick(xn); if (k == "") break
+    split(k, kk, "|")
+    out = out sprintf("%s{\"ip\":\"%s\",\"h\":\"%s\",\"n\":%d}", sep, kk[1], kk[2], xn[k])
+    sep = ","; delete xn[k]
+  }
+  out = out "],\"dm\":[" dmo "],\"i\":["; sep = ""
   for (i = 0; i < 10; i++) {
     k = pick(ipn); if (k == "") break
     out = out sprintf("%s{\"ip\":\"%s\",\"n\":%d}", sep, k, ipn[k])
@@ -346,7 +393,7 @@ load_traffic() {
   TRAFFIC_JSON=""
   [[ -r $TRAFFIC ]] || return 0
   while IFS= read -r line || [[ -n $line ]]; do
-    [[ $line == '{"ts":'*'}' && ${#line} -lt 14000 ]] || continue
+    [[ $line == '{"ts":'*'}' && ${#line} -lt 16000 ]] || continue
     TRAFFIC_JSON+="${TRAFFIC_JSON:+,}$line"; ((n++))
   done <"$TRAFFIC"
   ((n > 0))
@@ -378,7 +425,7 @@ collect_traffic() {
   limit=$((sz - off))
 
   out=$(tail -c "+$((off + 1))" -- "$IK_LOG_PATH" 2>/dev/null | awk -v LIMIT="$limit" -v SKIP1="$skip" -v TS="$now" -v WIN="$TRAFFIC_EVERY_S" -v TRUNC="$trunc" "$AWK_TRAFFIC" 2>/dev/null)
-  if [[ $out != '{"ts":'*'}' || ${#out} -gt 12000 ]]; then note_error "analyse du trafic invalide"; return 0; fi
+  if [[ $out != '{"ts":'*'}' || ${#out} -gt 15000 ]]; then note_error "analyse du trafic invalide"; return 0; fi
   cb=0; [[ $out =~ \"cb\":([0-9]+) ]] && cb=${BASH_REMATCH[1]}
   newoff=$((off + cb))
   # Une ligne plus longue que la fenêtre de lecture ne doit pas bloquer l'analyse : on saute à la fin.

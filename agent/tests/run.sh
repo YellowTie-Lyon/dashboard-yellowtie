@@ -148,7 +148,7 @@ check "token de format invalide refusé" eq "$(curl_calls)" 0
 new_env; as_collector
 out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : aucun appel réseau" eq "$(curl_calls)" 0
-check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.3.1"
+check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.4.0"
 check "dry-run : ne remplit pas le spool" eq "$(spool_lines)" 0
 
 # --- 12. Verrou : une exécution déjà en cours empêche le chevauchement ----------------------------------
@@ -226,10 +226,10 @@ check "erreurs 5xx comptées" eq "$(body | jq '.traffic[0].s[3]')" 10
 check "POST comptés" eq "$(body | jq '.traffic[0].m')" 10
 check "Googlebot reconnu" eq "$(body | jq '.traffic[0].ua.g')" 10
 check "navigateurs comptés" eq "$(body | jq '.traffic[0].ua.h')" 10
-check "URL : la requête est réduite au nom du premier paramètre" eq "$(body | jq -r '[.traffic[0].u[].p] | sort | .[0]')" "/shop/produit/"
-check "URL avec paramètre sans valeur" has "$(body | jq -r '[.traffic[0].u[].p] | join(" ")')" "/wp-login.php?redirect_to"
+check "URL : la requête est réduite aux noms de paramètres" eq "$(body | jq -r '[.traffic[0].u[].p] | sort | .[0]')" "/shop/produit/"
+check "URL : signature des paramètres triée, sans valeurs" has "$(body | jq -r '[.traffic[0].u[].p] | join(" ")')" "/wp-login.php?redirect_to,y"
 check "IP active remontée" has "$(body | jq -r '[.traffic[0].i[].ip] | join(" ")')" "203.0.113.9"
-check "aucune ligne brute dans le message" hasnt "$(body)" "Mozilla"
+check "aucune ligne brute dans le message (ni requête HTTP, ni valeur de paramètre)" hasnt "$(body)" "HTTP/1.1"
 check "fenêtre acquittée : plus rien en attente" eq "$(grep -c . "$IK_STATE_DIR/traffic" 2>/dev/null || true)" 0
 export IK_NOW=7000120; "$AGENT"
 check "rien de nouveau dans le log : pas de fenêtre" eq "$(body | jq 'has("traffic")')" false
@@ -272,6 +272,25 @@ check "caractères dangereux d'une URL neutralisés" eq "$(body | jq -r '[.traff
 # Sans access.log : pas d'erreur, pas de trafic.
 new_env; rm -f "$IK_HOME/ik-logs/access.log"; export IK_NOW=7500000; "$AGENT"; export IK_NOW=7500300; "$AGENT"
 check "sans access.log : heartbeat normal" eq "$(body | jq 'has("traffic")')" false
+
+# --- Agent 0.4.0 : motifs de requête, user-agents, IP par domaine, détail par domaine ----------------------
+new_env; export IK_NOW=7600000; "$AGENT"
+{
+  for i in $(seq 1 30); do printf 'shop.fr 198.51.100.7 - - [30/Sep/2026:10:00:00 +0200] "GET /boutique/?orderby=price&filter_couleur=rouge&min_price=10&query_type_couleur=or HTTP/1.1" 200 900 "-" "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"\n'; done
+  for i in $(seq 1 10); do printf 'shop.fr 203.0.113.50 - - [30/Sep/2026:10:00:01 +0200] "POST /wp-login.php HTTP/1.1" 200 500 "-" "python-requests/2.31"\n'; done
+  for i in $(seq 1 5); do printf 'shop.fr 203.0.113.60 - - [30/Sep/2026:10:00:02 +0200] "GET /.env%d HTTP/1.1" 404 20 "-" "-"\n' "$i"; done
+} >>"$IK_HOME/ik-logs/access.log"
+export IK_NOW=7600060; "$AGENT"
+check "motif de paramètres trié (sans valeurs)" eq "$(body | jq -r '.traffic[0].q[0].q')" "filter_couleur,min_price,orderby,query_type_couleur"
+check "motif : nombre de requêtes" eq "$(body | jq '.traffic[0].q[0].n')" 30
+check "les valeurs de paramètres ne quittent pas l'hébergement" hasnt "$(body)" "rouge"
+check "user-agent le plus fréquent remonté" has "$(body | jq -r '.traffic[0].a[0].ua')" "AhrefsBot"
+check "user-agent vide compté (vide)" has "$(body | jq -r '[.traffic[0].a[].ua] | join(" ")')" "(vide)"
+check "IP × domaine la plus active" eq "$(body | jq -r '.traffic[0].x[0] | "\(.ip) \(.h) \(.n)"')" "198.51.100.7 shop.fr 30"
+check "POST par URL comptés" eq "$(body | jq '[.traffic[0].u[] | select(.p == "/wp-login.php")][0].m')" 10
+check "détail par domaine : 404 comptés" eq "$(body | jq '.traffic[0].dm[0].n4')" 5
+check "détail par domaine : URL distinctes" eq "$(body | jq '.traffic[0].dm[0].pc >= 7')" true
+check "le message reste borné" eq "$(body | jq -c '.traffic[0]' | wc -c | awk '{print ($1 < 15000)}')" 1
 
 echo
 echo "Résultat : $PASS réussis, $FAIL échoués"
