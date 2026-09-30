@@ -38,7 +38,7 @@ function levelFor(status: CloudStatusRow | undefined, metrics: Metric[]): Level 
 
 /**
  * Un Server Cloud en trois zones lisibles d'un coup d'œil :
- *   1. état + verdict, 2. les quatre mesures (+ tendance CPU), 3. « où regarder » : hébergements puis domaines les plus sollicités.
+ *   1. état + verdict, 2. les quatre mesures (+ tendance du load), 3. « où regarder » : hébergements puis domaines les plus sollicités.
  */
 export function CloudPanel({
   cloud, state, status, hostingStates, openIncidents, now,
@@ -100,8 +100,8 @@ export function CloudPanel({
       </div>
 
       <div className="mt-4">
-        <p className={labelMono}>CPU · dernière heure</p>
-        <div className="mt-1"><Sparkline values={(series.data ?? []).map((x) => x.cpu_pct_avg)} max={100} label="CPU, dernière heure" /></div>
+        <p className={labelMono}>Load · dernière heure</p>
+        <div className="mt-1"><Sparkline values={(series.data ?? []).map((x) => x.load1_avg)} label="Load, dernière heure" /></div>
       </div>
 
       <section className="mt-6 border-t border-white/10 pt-5" aria-label="Où regarder">
