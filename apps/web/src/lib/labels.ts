@@ -6,7 +6,7 @@
  * Aucun autre fichier ne doit écrire ces formulations en dur.
  */
 
-export type ServerStatus = 'normal' | 'warning' | 'critical' | 'offline' | 'unknown' | 'observing'
+export type ServerStatus = 'normal' | 'warning' | 'critical' | 'offline' | 'unknown' | 'maintenance'
 
 export const STATUS_LABELS: Record<ServerStatus, string> = {
   normal: 'Normal',
@@ -14,8 +14,7 @@ export const STATUS_LABELS: Record<ServerStatus, string> = {
   critical: 'Critical',
   offline: 'Offline',
   unknown: 'Aucune donnée',
-  // Des relevés arrivent mais les seuils ne sont pas encore évalués (phase 5) : mode observation.
-  observing: 'En observation',
+  maintenance: 'Maintenance',
 }
 
 export const TRAFFIC_LABELS = {
@@ -32,3 +31,19 @@ export const ANOMALY_LABELS: Record<string, string> = {
   hostname_mismatch:
     "Le hostname de cet agent diffère de celui de son Server Cloud : vérifiez que l'hébergement est rattaché au bon Cloud.",
 }
+
+/**
+ * Diagnostic d'un silence. Formulations volontairement prudentes : le mode « push » ne permet jamais d'affirmer
+ * qu'un serveur est arrêté, seulement de conclure qu'une cause est probable.
+ */
+export const DIAGNOSIS_LABELS = {
+  agents_silent: "Les sondes répondent mais aucun agent n'envoie de données : agent ou cron probablement arrêté.",
+  unreachable_probable: "Aucun agent ne répond et les sondes échouent : Server Cloud potentiellement inaccessible.",
+  unknown_cause: "Aucun agent ne répond. Cause indéterminée (aucune sonde exploitable : configurez-en une par hébergement).",
+} as const
+
+export const CONNECTIVITY_LABELS = {
+  delayed: 'Données en retard (moins que le seuil offline).',
+  metrics_stale: "Le collecteur système est silencieux alors que d'autres agents répondent : les valeurs système sont obsolètes.",
+  never: "Aucun agent n'a encore envoyé de données.",
+} as const

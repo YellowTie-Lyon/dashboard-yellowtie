@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
 import { LiveIndicator } from './LiveIndicator'
 
@@ -16,7 +16,12 @@ export function AppShell() {
             >
               YS
             </span>
-            <span className="font-semibold tracking-tight">YellowScope</span>
+            <Link to="/" className="font-semibold tracking-tight">
+              YellowScope
+            </Link>
+            <Link to="/reglages" className="ml-4 text-sm text-slate-500 hover:underline dark:text-slate-400">
+              Réglages
+            </Link>
           </div>
           <div className="flex items-center gap-4 text-sm">
             <LiveIndicator />

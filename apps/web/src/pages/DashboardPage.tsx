@@ -3,13 +3,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
 import { btnPrimary, card, mutedText } from '../components/ui'
+import { fetchCloudStatuses } from '../features/alerts/api'
 import { fetchCloudStates, fetchClouds, sitesCount } from '../features/inventory/api'
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { errorMessage } from '../lib/errors'
 import { LIVE } from '../lib/live'
 import { formatLoad, formatPercent, formatRelativeTime } from '../lib/format'
-import type { CloudState, CloudWithCounts } from '../lib/types'
+import { statusSummary } from '../lib/alerts'
+import type { CloudState, CloudStatusRow, CloudWithCounts } from '../lib/types'
 import { useNow } from '../lib/useNow'
 
 export function DashboardPage() {
@@ -17,6 +19,8 @@ export function DashboardPage() {
   const { workspace, canWrite, isPending: workspacePending, error: workspaceError } = useWorkspace()
   const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds, refetchInterval: LIVE.slow })
   const states = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: LIVE.fast })
+  const statuses = useQuery({ queryKey: ['cloud-statuses'], queryFn: fetchCloudStatuses, refetchInterval: LIVE.fast })
+  const statusByCloud = new Map((statuses.data ?? []).map((st) => [st.cloud_server_id, st]))
   const now = useNow()
   const stateByCloud = new Map((states.data ?? []).map((st) => [st.cloud_server_id, st]))
   const [creating, setCreating] = useState(false)
@@ -61,7 +65,7 @@ export function DashboardPage() {
       {clouds.data && clouds.data.length > 0 && (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {clouds.data.map((cloud) => (
-            <CloudCard key={cloud.id} cloud={cloud} state={stateByCloud.get(cloud.id)} now={now} />
+            <CloudCard key={cloud.id} cloud={cloud} state={stateByCloud.get(cloud.id)} status={statusByCloud.get(cloud.id)} now={now} />
           ))}
         </ul>
       )}
@@ -78,7 +82,13 @@ export function DashboardPage() {
   )
 }
 
-function CloudCard({ cloud, state, now }: { cloud: CloudWithCounts; state?: CloudState; now: number }) {
+const ACCENT: Record<string, string> = {
+  critical: 'border-l-4 border-l-status-critical',
+  warning: 'border-l-4 border-l-status-warning',
+  offline: 'border-l-4 border-l-status-offline',
+}
+
+function CloudCard({ cloud, state, status, now }: { cloud: CloudWithCounts; state?: CloudState; status?: CloudStatusRow; now: number }) {
   const hostings = cloud.web_hostings.length
   const sites = sitesCount(cloud.web_hostings)
   const point = state?.last_point
@@ -91,11 +101,16 @@ function CloudCard({ cloud, state, now }: { cloud: CloudWithCounts; state?: Clou
   ]
   return (
     <li>
-      <Link to={`/clouds/${cloud.id}`} className={`${card} block transition hover:border-yellow-400`}>
+      <Link to={`/clouds/${cloud.id}`} className={`${card} block transition hover:border-yellow-400 ${ACCENT[status?.status ?? ''] ?? ''}`}>
         <div className="flex items-start justify-between gap-2">
           <h2 className="font-semibold uppercase tracking-tight">{cloud.name}</h2>
-          <StatusBadge status={state ? 'observing' : 'unknown'} />
+          <StatusBadge status={status?.status ?? 'unknown'} />
         </div>
+        {statusSummary(status) && (
+          <p className={`mt-2 text-sm font-medium ${status?.status === 'critical' ? 'text-red-700 dark:text-red-400' : status?.status === 'warning' ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300'}`}>
+            {statusSummary(status)}
+          </p>
+        )}
         <dl className={`mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm ${stale ? 'opacity-60' : ''}`}>
           {metrics.map(([label, value]) => (
             <div key={label} className="flex justify-between">

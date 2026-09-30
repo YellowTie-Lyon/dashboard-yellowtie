@@ -2,16 +2,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CloudState, CloudWithCounts } from '../lib/types'
+import type { CloudState, CloudStatusRow, CloudWithCounts } from '../lib/types'
 import { DashboardPage } from './DashboardPage'
 
 const fetchClouds = vi.fn<() => Promise<CloudWithCounts[]>>()
 const fetchCloudStates = vi.fn<() => Promise<CloudState[]>>()
+const fetchCloudStatuses = vi.fn<() => Promise<CloudStatusRow[]>>()
 let canWrite = true
 
 vi.mock('../features/inventory/api', async () => {
   const actual = await vi.importActual<typeof import('../features/inventory/api')>('../features/inventory/api')
   return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates() }
+})
+vi.mock('../features/alerts/api', async () => {
+  const actual = await vi.importActual<typeof import('../features/alerts/api')>('../features/alerts/api')
+  return { ...actual, fetchCloudStatuses: () => fetchCloudStatuses() }
 })
 vi.mock('../features/workspace/useWorkspace', () => ({
   useWorkspace: () => ({
@@ -41,6 +46,16 @@ function cloud(over: Partial<CloudWithCounts>): CloudWithCounts {
   }
 }
 
+function status(value: CloudStatusRow['status'], detail: Partial<CloudStatusRow['detail']> = {}, cloudId = 'c1'): CloudStatusRow {
+  return {
+    cloud_server_id: cloudId,
+    status: value,
+    status_since: new Date().toISOString(),
+    evaluated_at: new Date().toISOString(),
+    detail: { reasons: [], connectivity: 'ok', offline_diagnosis: null, last_agent_seen: null, metrics_received: null, ...detail },
+  }
+}
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -58,6 +73,8 @@ describe('DashboardPage', () => {
     fetchClouds.mockReset()
     fetchCloudStates.mockReset()
     fetchCloudStates.mockResolvedValue([])
+    fetchCloudStatuses.mockReset()
+    fetchCloudStatuses.mockResolvedValue([])
   })
 
   it('affiche l’état vide quand aucun Cloud n’existe', async () => {
@@ -93,7 +110,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('button', { name: /Ajouter un Server Cloud/ })).not.toBeInTheDocument()
   })
 
-  it('affiche les valeurs du dernier relevé et le mode observation', async () => {
+  it('affiche les valeurs du dernier relevé et le statut calculé', async () => {
     fetchClouds.mockResolvedValue([cloud({ web_hostings: [{ id: 'h1', sites: [{ count: 3 }] }] })])
     const nowIso = new Date().toISOString()
     fetchCloudStates.mockResolvedValue([
@@ -124,12 +141,44 @@ describe('DashboardPage', () => {
         },
       },
     ])
+    fetchCloudStatuses.mockResolvedValue([status('normal')])
     renderPage()
-    expect(await screen.findByText('En observation')).toBeInTheDocument()
+    expect(await screen.findByText('Normal')).toBeInTheDocument()
     expect(screen.getByText('15,1 %')).toBeInTheDocument()
     expect(screen.getByText('2,43')).toBeInTheDocument()
     expect(screen.getByText('33,1 %')).toBeInTheDocument()
     expect(screen.getByText('50,3 %')).toBeInTheDocument()
     expect(screen.getByText(/Dernière donnée : à l'instant/)).toBeInTheDocument()
+  })
+
+  it('affiche un Warning avec sa raison principale', async () => {
+    fetchClouds.mockResolvedValue([cloud({})])
+    fetchCloudStatuses.mockResolvedValue([
+      status('warning', {
+        reasons: [{ metric: 'cpu_pct', level: 'warning', value: 82, warn: 75, crit: 90, since: new Date().toISOString() }],
+      }),
+    ])
+    renderPage()
+    expect(await screen.findByText('Warning')).toBeInTheDocument()
+    expect(screen.getByText('CPU 82 %')).toBeInTheDocument()
+  })
+
+  it('affiche un Cloud hors ligne avec un diagnostic prudent', async () => {
+    fetchClouds.mockResolvedValue([cloud({})])
+    fetchCloudStatuses.mockResolvedValue([status('offline', { connectivity: 'silent', offline_diagnosis: 'agents_silent' })])
+    renderPage()
+    expect(await screen.findByText('Offline')).toBeInTheDocument()
+    expect(screen.getByText('Agents silencieux, les sondes répondent')).toBeInTheDocument()
+    expect(screen.queryByText(/mort|arrêté/i)).not.toBeInTheDocument()
+  })
+
+  it('affiche le statut de chaque Cloud séparément', async () => {
+    fetchClouds.mockResolvedValue([cloud({}), cloud({ id: 'c2', name: 'YellowTie Server Cloud 2' })])
+    fetchCloudStatuses.mockResolvedValue([status('critical', {
+      reasons: [{ metric: 'load1_per_core', level: 'critical', value: 1.4, warn: 0.6, crit: 1, since: new Date().toISOString() }],
+    }, 'c2'), status('normal', {}, 'c1')])
+    renderPage()
+    expect(await screen.findByText('Critical')).toBeInTheDocument()
+    expect(screen.getByText('Normal')).toBeInTheDocument()
   })
 })

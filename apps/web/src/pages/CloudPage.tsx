@@ -17,7 +17,11 @@ import {
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
+import { AlertRulesEditor } from '../features/alerts/AlertRulesEditor'
+import { fetchCloudStatuses, fetchLatestProbes } from '../features/alerts/api'
 import { MetricsCard } from '../components/MetricsCard'
+import { StatusCard } from '../components/StatusCard'
+import { agentHealth } from '../lib/alerts'
 import { formatRelativeTime } from '../lib/format'
 import { LIVE } from '../lib/live'
 import { useNow } from '../lib/useNow'
@@ -41,6 +45,13 @@ export function CloudPage() {
     refetchInterval: LIVE.fast,
   })
   const cloudStates = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: LIVE.fast })
+  const statuses = useQuery({ queryKey: ['cloud-statuses'], queryFn: fetchCloudStatuses, refetchInterval: LIVE.fast })
+  const probes = useQuery({
+    queryKey: ['latest-probes', cloudId, hostingIds],
+    queryFn: () => fetchLatestProbes(hostingIds),
+    enabled: hostings.isSuccess,
+    refetchInterval: LIVE.normal,
+  })
   const now = useNow()
 
   const [editing, setEditing] = useState(false)
@@ -77,6 +88,7 @@ export function CloudPage() {
   const rows = hostings.data ?? []
   const seenById = new Map((hostingStates.data ?? []).map((st) => [st.web_hosting_id, st]))
   const cloudState = (cloudStates.data ?? []).find((st) => st.cloud_server_id === c.id) ?? null
+  const statusRow = (statuses.data ?? []).find((st) => st.cloud_server_id === c.id)
   const hasCollector = rows.some((h) => h.system_metrics_collector && h.is_active)
 
   return (
@@ -88,12 +100,7 @@ export function CloudPage() {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold uppercase tracking-tight">{c.name}</h1>
-            <StatusBadge status={cloudState ? 'observing' : 'unknown'} />
-            {c.maintenance && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                Maintenance
-              </span>
-            )}
+            <StatusBadge status={statusRow?.status ?? 'unknown'} />
           </div>
           {canWrite && (
             <div className="flex gap-2">
@@ -130,6 +137,8 @@ export function CloudPage() {
         </dl>
         {c.notes && <p className={`mt-2 ${mutedText}`}>{c.notes}</p>}
       </div>
+
+      <StatusCard row={statusRow} now={now} />
 
       <MetricsCard state={cloudState} offlineAfterSeconds={c.offline_after_seconds} now={now} />
 
@@ -190,12 +199,32 @@ export function CloudPage() {
                     <span className="text-slate-500 dark:text-slate-400">
                       · {h.sites[0]?.count ?? 0} site{(h.sites[0]?.count ?? 0) > 1 ? 's' : ''}
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400">
-                      ·{' '}
-                      {seenById.get(h.id)
-                        ? `agent vu ${formatRelativeTime(seenById.get(h.id)!.last_seen_at, now)}`
-                        : 'aucun heartbeat reçu'}
-                    </span>
+                    {(() => {
+                      const seen = seenById.get(h.id)
+                      const health = agentHealth(seen?.last_seen_at, c.offline_after_seconds, now)
+                      const probe = probes.data?.get(h.id)
+                      return (
+                        <>
+                          <span
+                            className={
+                              health === 'silent'
+                                ? 'font-medium text-amber-700 dark:text-amber-400'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }
+                          >
+                            ·{' '}
+                            {seen
+                              ? `agent ${health === 'silent' ? 'silencieux, vu' : health === 'delayed' ? 'en retard, vu' : 'vu'} ${formatRelativeTime(seen.last_seen_at, now)}`
+                              : 'aucun heartbeat reçu'}
+                          </span>
+                          {health === 'silent' && h.probe_url && probe && (
+                            <span className="text-slate-500 dark:text-slate-400">
+                              · sonde {probe.ok ? `OK (${probe.http_status ?? '…'})` : 'en échec'} {formatRelativeTime(probe.ts, now)}
+                            </span>
+                          )}
+                        </>
+                      )
+                    })()}
                     {seenById.get(h.id)?.anomaly && (
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                         Anomalie
@@ -223,6 +252,16 @@ export function CloudPage() {
           </ul>
         )}
       </div>
+
+      <details className={card}>
+        <summary className="cursor-pointer font-semibold">Seuils d'alerte de ce Server Cloud</summary>
+        <p className={`mt-2 ${mutedText}`}>
+          Chaque règle reprend la valeur par défaut du workspace (page Réglages) tant que vous ne la personnalisez pas ici.
+        </p>
+        <div className="mt-3">
+          <AlertRulesEditor cloudId={c.id} calibrationCloudId={c.id} />
+        </div>
+      </details>
 
       <div className={`${card} border-dashed`}>
         <h2 className="font-semibold">Incidents et diagnostics de trafic</h2>

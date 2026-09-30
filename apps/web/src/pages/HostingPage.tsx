@@ -19,6 +19,7 @@ import {
   setSiteActive,
   setSystemCollector,
 } from '../features/inventory/api'
+import { fetchLatestProbes } from '../features/alerts/api'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { formatBytes, formatRelativeTime } from '../lib/format'
@@ -45,6 +46,11 @@ export function HostingPage() {
     queryKey: ['hosting-state', hostingId],
     queryFn: async () => (await fetchHostingStates([hostingId]))[0] ?? null,
     refetchInterval: LIVE.fast,
+  })
+  const probe = useQuery({
+    queryKey: ['latest-probes', 'hosting', hostingId],
+    queryFn: async () => (await fetchLatestProbes([hostingId])).get(hostingId) ?? null,
+    refetchInterval: LIVE.normal,
   })
   const now = useNow()
 
@@ -171,7 +177,14 @@ export function HostingPage() {
           </div>
           <div>
             <dt className="inline text-slate-400">Sonde : </dt>
-            <dd className="inline">{h.probe_url ?? 'non configurée'}</dd>
+            <dd className="inline">
+              {h.probe_url ?? 'non configurée'}
+              {h.probe_url && probe.data && (
+                <span className="text-slate-500 dark:text-slate-400">
+                  {' '}· dernière : {probe.data.ok ? `OK (${probe.data.http_status ?? '…'})` : 'en échec'} {formatRelativeTime(probe.data.ts, now)}
+                </span>
+              )}
+            </dd>
           </div>
         </dl>
       </div>

@@ -221,9 +221,30 @@ Load + CPU + RAM ne créent jamais trois incidents : une seule alerte `performan
 Jamais « serveur mort ». Une réponse HTTP < 500 compte comme OK. Sonde de base toutes les 5 min, chaque
 minute pendant une suspicion.
 
-**Calibrage** : les notifications sont désactivées par défaut (`notifications_enabled = false`). Les statuts
-et incidents se calculent quand même. Les seuils par défaut sont des valeurs de départ seedées en base
-(RAM 85/95 %, disque 80/90 %, load/cœur et CPU provisoires) et se modifient dans l'interface.
+**Implémentation (phase 5)** : pg_cron évalue chaque Cloud **chaque minute** (`evaluate_all`) et écrit le résultat dans
+`cloud_status` (statut, début, raisons, connectivité, diagnostic) ; `refresh_statuses()` recalcule immédiatement après un
+changement de seuil. Les sondes utilisent `pg_net` (`run_probes`, toutes les minutes ; chaque hébergement n'est sondé que
+quand c'est dû) ; toute la dépendance à pg_net est isolée dans deux fonctions (`probe_http_get`, `probe_http_result`), et une
+erreur (extension absente) est visible dans l'interface au lieu d'être silencieuse. Les URL vers une adresse IP, un nom
+local ou sans point ne sont jamais sondées.
+
+Algorithme d'évaluation d'une règle (toutes les valeurs sont des données de `alert_rules`) :
+1. **Niveau candidat** : sur la fenêtre `window_minutes`, `critical` si au moins `min_breach_ratio` des relevés dépassent le
+   seuil Critical, sinon `warning` s'ils dépassent le seuil Warning, sinon `ok`. Moins de 60 % de relevés attendus dans la
+   fenêtre : aucun changement (un manque de données n'est ni une alerte ni un retour à la normale).
+2. **Montée immédiate**, **descente à l'hystérésis** : le niveau ne baisse que si, sur `recover_minutes`, **toutes** les
+   valeurs restent sous (seuil − `recover_margin`). Critical → Warning puis Warning → Ok suivent chacun leur propre seuil.
+3. **Statut du Cloud** : le pire niveau des règles actives. La surcharge d'un Cloud remplace la valeur par défaut, métrique
+   par métrique ; une surcharge désactivée neutralise la règle pour ce Cloud.
+4. **Connectivité (prioritaire)** : maintenance → `maintenance` ; aucun agent actif depuis `offline_after_seconds` →
+   `offline` + diagnostic par les sondes ; agents vivants mais collecteur muet → `unknown` (valeurs obsolètes, aucune
+   règle évaluée) ; agent en retard de plus de 90 s mais sous le seuil → statut normal, signalé « en retard ».
+
+**Calibrage** : les valeurs par défaut sont des **valeurs de départ provisoires** semées pour chaque workspace (4 règles
+actives : load 1 min par cœur 0,6 / 1,0 ; CPU 75 / 90 % ; RAM 85 / 95 % ; disque 80 / 90 % — 4 autres inactives : load 5 min
+par cœur, load absolus, swap). Elles se modifient dans **Réglages** (défauts du workspace) et sur la page d'un Cloud
+(surcharge), avec la distribution réelle des mesures sur 7 jours (médiane, p95, p99, max) sous chaque règle pour choisir des
+seuils réalistes. Aucune notification externe n'est envoyée.
 
 ## 7. Modèle de données
 
@@ -329,7 +350,10 @@ Vocabulaire centralisé dans `apps/web/src/lib/labels.ts` : « Top trafic pendan
 « Hébergement / Domaine potentiellement impliqué ». « Activité anormale » n'apparaît que si une base de
 référence existe.
 
-## 11. Discord
+## 11. Discord (abandonné à la demande du 30/09/2026)
+
+Les notifications Discord ne sont plus prévues. Le mécanisme d'*outbox* ci-dessous reste la conception de référence si un canal
+externe (Discord, e-mail, push) est un jour rajouté ; rien dans le code actuel n'en dépend.
 
 Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »), `escalated`
 (Warning → Critical), `diagnostic` (« 3/3 hébergements analysés » ou « 2/3, 1 agent n'a pas répondu »),
@@ -343,9 +367,9 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 | 1 | Fondations : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | Fait |
 | 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | Fait |
 | 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, découverte des sites, mode observation | Fait |
-| **4** | **Graphiques et données** : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | **En cours de validation** |
-| 5 | Règles, statuts, silences, sondes | À faire |
-| 6 | Incidents et Discord, historique | À faire |
+| 4 | Graphiques et données : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | Fait |
+| **5** | **Seuils, statuts, silences, sondes** (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | **En cours de validation** |
+| 6 | Incidents et historique (notifications externes abandonnées à la demande) | À faire |
 | 7 | Diagnostic de trafic (`analyze_logs`), découverte de sites, UI de comparaison | À faire |
 | 8 | Durcissement, runbook, production | À faire |
 

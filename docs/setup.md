@@ -151,3 +151,20 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
   ```
   (Sans cela, les graphiques fonctionnent quand même depuis les relevés d'une minute, mais rien n'est agrégé ni purgé.)
 - Vérifier que les tâches existent : `select jobname, schedule, active from cron.job;`
+
+## Phase 5 : seuils, statuts et sondes
+
+- **Statuts** : chaque Server Cloud affiche Normal, Warning, Critical, Offline, Maintenance ou Aucune donnée, recalculé chaque
+  minute. Ouvrez la page d'un Cloud : le cadre « Statut » liste les raisons (métrique, valeur, seuils, depuis quand) ou, en cas
+  de silence, le diagnostic.
+- **Seuils** : menu **Réglages** (valeurs par défaut de tous les Clouds) et « Seuils d'alerte de ce Server Cloud » sur la page
+  d'un Cloud (personnalisation). Les valeurs de départ sont **provisoires** : sous chaque règle, comparez avec les mesures
+  réelles des 7 derniers jours (médiane, p95, p99, max), puis ajustez. L'enregistrement recalcule les statuts aussitôt.
+  Les six réglages d'une règle : seuil Warning, seuil Critical, fenêtre (minutes), part de relevés au-dessus du seuil,
+  marge de retour et durée de retour stable (hystérésis, pour éviter les alertes qui clignotent autour d'un seuil).
+- **Sondes** (pour distinguer « agent arrêté » de « Cloud potentiellement inaccessible ») : sur la page de chaque hébergement,
+  **Modifier**, champ « URL de sonde » (HTTPS). Le mieux est un petit fichier statique d'un de ses sites (par exemple
+  `https://votre-site.fr/ik-probe.txt`, contenant un simple mot) pour ne pas solliciter PHP. Une réponse HTTP inférieure à 500
+  (même 404) prouve que le serveur web répond. La page Réglages indique le dernier passage des sondes ; elle signale aussi si
+  l'extension **pg_net** doit être activée (Supabase > Database > Extensions).
+- **Aucune notification** n'est envoyée : les statuts se consultent dans YellowScope (mise à jour automatique).

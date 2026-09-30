@@ -124,3 +124,66 @@ export interface JobState {
   last_run_at: string
   detail: Record<string, unknown>
 }
+
+export type Metric =
+  | 'load1_per_core' | 'load5_per_core' | 'load1' | 'load5'
+  | 'cpu_pct' | 'mem_used_pct' | 'swap_used_pct' | 'disk_used_pct'
+
+export interface AlertRule {
+  id: string
+  workspace_id: string
+  /** null = valeur par défaut du workspace ; sinon surcharge pour ce Server Cloud. */
+  cloud_server_id: string | null
+  metric: Metric
+  warn_threshold: number
+  crit_threshold: number
+  window_minutes: number
+  min_breach_ratio: number
+  recover_margin: number
+  recover_minutes: number
+  enabled: boolean
+}
+
+export type CloudStatusValue = 'normal' | 'warning' | 'critical' | 'offline' | 'unknown' | 'maintenance'
+
+export interface StatusReason {
+  metric: Metric
+  level: 'warning' | 'critical'
+  value: number | null
+  warn: number
+  crit: number
+  since: string
+}
+
+export interface CloudStatusRow {
+  cloud_server_id: string
+  status: CloudStatusValue
+  status_since: string
+  evaluated_at: string
+  detail: {
+    reasons: StatusReason[]
+    connectivity: 'ok' | 'delayed' | 'silent' | 'never' | 'metrics_stale'
+    offline_diagnosis: 'agents_silent' | 'unreachable_probable' | 'unknown_cause' | null
+    last_agent_seen: string | null
+    metrics_received: string | null
+  }
+}
+
+export interface MetricPercentiles {
+  metric: Metric
+  n: number
+  p50: number
+  p95: number
+  p99: number
+  max: number
+}
+
+export interface ProbeResult {
+  id: number
+  web_hosting_id: string
+  ts: string
+  ok: boolean
+  http_status: number | null
+  latency_ms: number | null
+  error: string | null
+}
