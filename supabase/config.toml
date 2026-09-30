@@ -1,0 +1,30 @@
+# Configuration de la CLI Supabase (développement local et CI).
+# Les réglages du projet hébergé se font dans le tableau de bord (voir docs/setup.md).
+project_id = "dashboard-yellowtie"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+# Inscription publique désactivée : les comptes sont créés par l'administrateur.
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false

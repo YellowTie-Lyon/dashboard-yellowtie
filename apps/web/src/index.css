@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/*
+ * Jetons de design. Les 4 statuts de supervision sont définis ici une seule fois
+ * (couleur + fond léger) et réutilisés par <StatusBadge /> et, plus tard, les cartes/graphiques.
+ */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --color-status-normal: #16a34a;
+  --color-status-warning: #d97706;
+  --color-status-critical: #dc2626;
+  --color-status-offline: #6b7280;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
