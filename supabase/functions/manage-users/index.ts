@@ -9,21 +9,20 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { checkInvite, checkTarget, parseRequest, siteOrigin, type Member } from './logic.ts'
 
+const corsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin ?? '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
+})
+
 const json = (body: unknown, status = 200, origin: string | null = null) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': origin ?? '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      Vary: 'Origin',
-    },
-  })
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) } })
 
 Deno.serve(async (req) => {
   const origin = siteOrigin(req.headers.get('origin'), Deno.env.get('SITE_URL'))
-  if (req.method === 'OPTIONS') return json({}, 204, origin)
+  // Pré-requête CORS du navigateur : une réponse 204 ne doit JAMAIS porter de corps (sinon le constructeur Response échoue).
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) })
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405, origin)
 
   const url = Deno.env.get('SUPABASE_URL')!
