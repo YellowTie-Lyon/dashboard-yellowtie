@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorNote } from '../components/ErrorNote'
@@ -19,7 +19,11 @@ import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { MetricsCard } from '../components/MetricsCard'
 import { formatRelativeTime } from '../lib/format'
+import { LIVE } from '../lib/live'
 import { useNow } from '../lib/useNow'
+
+// Les graphiques (Recharts) sont chargés à la demande : la page de connexion et le tableau de bord restent légers.
+const MetricsCharts = lazy(() => import('../features/metrics/MetricsCharts').then((m) => ({ default: m.MetricsCharts })))
 
 export function CloudPage() {
   const { cloudId = '' } = useParams()
@@ -27,16 +31,16 @@ export function CloudPage() {
   const queryClient = useQueryClient()
   const { workspace, canWrite } = useWorkspace()
 
-  const cloud = useQuery({ queryKey: ['cloud', cloudId], queryFn: () => fetchCloud(cloudId) })
-  const hostings = useQuery({ queryKey: ['hostings', cloudId], queryFn: () => fetchHostings(cloudId) })
+  const cloud = useQuery({ queryKey: ['cloud', cloudId], queryFn: () => fetchCloud(cloudId), refetchInterval: LIVE.slow })
+  const hostings = useQuery({ queryKey: ['hostings', cloudId], queryFn: () => fetchHostings(cloudId), refetchInterval: LIVE.slow })
   const hostingIds = (hostings.data ?? []).map((h) => h.id)
   const hostingStates = useQuery({
     queryKey: ['hosting-states', cloudId, hostingIds],
     queryFn: () => fetchHostingStates(hostingIds),
     enabled: hostings.isSuccess,
-    refetchInterval: 30_000,
+    refetchInterval: LIVE.fast,
   })
-  const cloudStates = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: 30_000 })
+  const cloudStates = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: LIVE.fast })
   const now = useNow()
 
   const [editing, setEditing] = useState(false)
@@ -129,6 +133,10 @@ export function CloudPage() {
 
       <MetricsCard state={cloudState} offlineAfterSeconds={c.offline_after_seconds} now={now} />
 
+      <Suspense fallback={<p className={mutedText}>Chargement des graphiques…</p>}>
+        <MetricsCharts cloud={c} />
+      </Suspense>
+
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -216,15 +224,9 @@ export function CloudPage() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className={`${card} border-dashed`}>
-          <h2 className="font-semibold">Graphiques historiques</h2>
-          <p className={mutedText}>Disponibles en phase 4 (1 h, 6 h, 24 h, 7 j, 30 j).</p>
-        </div>
-        <div className={`${card} border-dashed`}>
-          <h2 className="font-semibold">Incidents et diagnostics de trafic</h2>
-          <p className={mutedText}>Disponibles en phases 6 et 7.</p>
-        </div>
+      <div className={`${card} border-dashed`}>
+        <h2 className="font-semibold">Incidents et diagnostics de trafic</h2>
+        <p className={mutedText}>Disponibles en phases 6 et 7.</p>
       </div>
 
       {workspace && (

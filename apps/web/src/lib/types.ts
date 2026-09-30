@@ -98,3 +98,29 @@ export interface HostingState {
   log_inode: number | null
   anomaly: string | null
 }
+
+export type SeriesRange = '1h' | '6h' | '24h' | '7d' | '30d'
+
+/** Un point de get_series() : moyenne ET pic de la tranche (sur 1 h / 6 h, moyenne = pic = valeur mesurée). */
+export interface SeriesPoint {
+  ts: string
+  n: number
+  load1_avg: number
+  load1_max: number
+  load5_avg: number
+  load15_avg: number
+  cpu_pct_avg: number | null
+  cpu_pct_max: number | null
+  mem_used_pct_avg: number
+  mem_used_pct_max: number
+  swap_used_pct_avg: number
+  swap_used_pct_max: number
+  disk_used_pct_avg: number
+  disk_used_pct_max: number
+}
+
+export interface JobState {
+  name: string
+  last_run_at: string
+  detail: Record<string, unknown>
+}

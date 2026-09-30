@@ -7,6 +7,7 @@ import { fetchCloudStates, fetchClouds, sitesCount } from '../features/inventory
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { errorMessage } from '../lib/errors'
+import { LIVE } from '../lib/live'
 import { formatLoad, formatPercent, formatRelativeTime } from '../lib/format'
 import type { CloudState, CloudWithCounts } from '../lib/types'
 import { useNow } from '../lib/useNow'
@@ -14,8 +15,8 @@ import { useNow } from '../lib/useNow'
 export function DashboardPage() {
   const navigate = useNavigate()
   const { workspace, canWrite, isPending: workspacePending, error: workspaceError } = useWorkspace()
-  const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds })
-  const states = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: 30_000 })
+  const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds, refetchInterval: LIVE.slow })
+  const states = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: LIVE.fast })
   const now = useNow()
   const stateByCloud = new Map((states.data ?? []).map((st) => [st.cloud_server_id, st]))
   const [creating, setCreating] = useState(false)

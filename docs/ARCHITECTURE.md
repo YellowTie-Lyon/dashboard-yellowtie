@@ -245,8 +245,8 @@ et incidents se calculent quand même. Les seuils par défaut sont des valeurs d
 
 **État chaud** : `cloud_server_state` (Realtime), `web_hosting_state` (polling).
 
-**Séries** : `metrics` (par Cloud, 1/min), `metrics_5m`, `metrics_1h` (avg **et max**), `hosting_traffic_metrics`,
-`probe_results`.
+**Séries** *(implémenté, phase 4)* : `metrics` (par Cloud, 1/min), `metrics_1h` (moyenne **et maximum** par heure),
+`job_state` (dernière exécution de l'agrégation et de la purge) ; à venir : `hosting_traffic_metrics`, `probe_results`.
 
 **Alertes** : `metric_definitions`, `alert_rules` (règle par défaut du workspace, surchargeable par Cloud :
 `warn_threshold`, `crit_threshold`, `window_minutes`, `min_breach_ratio`, `recover_margin`,
@@ -283,14 +283,29 @@ Appels d'ingestion par mois (30 jours) : 2 collecteurs × 43 200 + 4 agents × 4
 
 | Table | Rétention | Sert à |
 |---|---|---|
-| `metrics` (1 min) | 7 jours | graphiques 1 h, 6 h |
-| `metrics_5m` | 35 jours | 24 h, 7 j |
-| `metrics_1h` | 400 jours | 30 j et historique |
+| `metrics` (1 min) | 35 jours | graphiques 1 h, 6 h, 24 h, 7 j (et 30 j pour l'heure en cours) |
+| `metrics_1h` (avg + max) | 400 jours | graphique 30 j et historique long |
 | `probe_results` | 14 jours | |
 | `incident_diagnostics*` | 30 jours | |
 
-Le frontend n'interroge jamais les tables pour les graphiques : une RPC `get_series(cloud_id, range)` choisit
-la bonne table et renvoie ≤ 2 000 points.
+Le frontend n'interroge jamais les tables pour les graphiques : la RPC `get_series(cloud_id, range)` (SECURITY
+INVOKER, donc soumise à la RLS) choisit la source et la finesse et renvoie au plus 720 points :
+
+| Période | Source | Points |
+|---|---|---|
+| 1 h, 6 h | relevés d'1 minute | 60 / 360 |
+| 24 h | relevés regroupés par 5 min (à la volée) | 288 |
+| 7 j | relevés regroupés par 15 min (à la volée) | 672 |
+| 30 j | agrégats horaires + heure en cours calculée à la volée (sans agrégat : tout depuis les relevés) | 720 |
+
+Chaque tranche porte **moyenne et pic**. Choix par rapport au plan initial : pas de table à 5 minutes. Conserver les
+relevés d'une minute 35 jours coûte quelques Mo par Cloud (≈ 50 000 lignes) et évite une table de plus ; l'agrégat
+horaire ne sert qu'au-delà. Un incident de plus de 35 jours n'est donc consultable qu'à l'heure près.
+
+Maintenance (`pg_cron`, tâches créées par la migration si l'extension est disponible) : `rollup_metrics` toutes les
+5 minutes (recalcule les 3 dernières heures, idempotent), `purge_old_data` chaque nuit à 03:17 UTC (garde-fou : jamais
+sous 8 jours pour les relevés, 35 jours pour les agrégats). Sans `pg_cron`, `get_series` continue de fonctionner depuis
+les relevés bruts et l'interface signale que l'agrégation ne tourne pas.
 
 ## 10. Dashboard
 
@@ -298,6 +313,17 @@ Cartes de **Server Clouds** (statut, CPU, load 1 m, RAM, disque, nombre d'héber
 donnée) → détail Cloud (métriques, graphiques 1 h / 6 h / 24 h / 7 j / 30 j avec bandes d'incident, incidents,
 hébergements, agents, diagnostics) → détail hébergement (Cloud parent, agent, domaines, diagnostics) →
 détail domaine. Une page « valeurs brutes » permet de comparer avec la console Infomaniak.
+
+**Actualisation automatique** (aucun F5) : les requêtes se rafraîchissent toutes seules (15 s pour les états des agents et
+des Clouds, 30 s pour les graphiques courts et les fiches, 60 s pour les listes lentes et les graphiques longs), se
+mettent en pause quand l'onglet est masqué et reprennent immédiatement au retour sur l'onglet et à la reconnexion
+réseau. Un indicateur « En direct · actualisé il y a X s » est affiché dans l'en-tête ; « Connexion perdue · nouvelle
+tentative automatique » apparaît si une requête de l'écran échoue. Réglages centralisés dans `apps/web/src/lib/live.ts`.
+
+**Graphiques** (règles de lecture) : une courbe par unité (jamais deux échelles sur un axe), moyenne en trait plein et pic
+de la tranche en zone claire, les interruptions de collecte **coupent** le trait, une seule infobulle pour toutes les
+séries, un seul filtre de période au-dessus des quatre courbes, un tableau de valeurs équivalent. Couleurs des séries
+validées en clair et en sombre (contrôle de contraste, de distinction daltonisme et de luminosité).
 
 Vocabulaire centralisé dans `apps/web/src/lib/labels.ts` : « Top trafic pendant l'incident »,
 « Hébergement / Domaine potentiellement impliqué ». « Activité anormale » n'apparaît que si une base de
@@ -316,8 +342,8 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 | 0 | Tests terrain | Fait (CPU synchronisé + comparaison console à finaliser) |
 | 1 | Fondations : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | Fait |
 | 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | Fait |
-| **3** | **Agent + ingestion** : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, mode observation | **En cours de validation** |
-| 4 | Dashboard : cartes, détails, `get_series`, rollups, rétention, valeurs brutes | À faire |
+| 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, découverte des sites, mode observation | Fait |
+| **4** | **Graphiques et données** : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | **En cours de validation** |
 | 5 | Règles, statuts, silences, sondes | À faire |
 | 6 | Incidents et Discord, historique | À faire |
 | 7 | Diagnostic de trafic (`analyze_logs`), découverte de sites, UI de comparaison | À faire |

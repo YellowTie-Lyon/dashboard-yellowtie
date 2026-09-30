@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
+import { LiveIndicator } from './LiveIndicator'
 
 export function AppShell() {
   const { user, signOut } = useAuth()
@@ -17,7 +18,8 @@ export function AppShell() {
             </span>
             <span className="font-semibold tracking-tight">YellowScope</span>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-4 text-sm">
+            <LiveIndicator />
             <span className="hidden text-slate-500 sm:inline dark:text-slate-400">{user?.email}</span>
             <button
               type="button"

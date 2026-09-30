@@ -135,3 +135,19 @@ servent à les comparer avec la console Infomaniak avant de fixer les seuils.
 Relancez simplement les deux lignes de la commande d'installation (page de l'hébergement > « Régénérer » n'est
 **pas** nécessaire) : l'installeur télécharge la dernière version, vérifie sa somme de contrôle et remplace
 l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actuel.
+
+## Phase 4 : graphiques et maintenance des données
+
+- Les graphiques (1 h, 6 h, 24 h, 7 j, 30 j) sont sur la page de chaque Server Cloud, sous « Dernier relevé système ».
+  Ils se mettent à jour tout seuls : plus besoin de recharger la page (voir l'indicateur « En direct » en haut).
+- La migration de la phase 4 essaie d'activer l'extension **pg_cron** et planifie l'agrégation (toutes les 5 minutes)
+  et la purge (chaque nuit). Si l'extension n'a pas pu être activée, le bas des graphiques affiche
+  « L'agrégation horaire n'a pas tourné récemment » : activez-la dans **Supabase > Database > Extensions > pg_cron**,
+  puis lancez dans **SQL Editor** :
+
+  ```sql
+  select cron.schedule('yellowscope-rollup', '*/5 * * * *', 'select public.rollup_metrics(interval ''3 hours'')');
+  select cron.schedule('yellowscope-purge', '17 3 * * *', 'select public.purge_old_data()');
+  ```
+  (Sans cela, les graphiques fonctionnent quand même depuis les relevés d'une minute, mais rien n'est agrégé ni purgé.)
+- Vérifier que les tâches existent : `select jobname, schedule, active from cron.job;`

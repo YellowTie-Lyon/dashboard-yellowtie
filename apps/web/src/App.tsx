@@ -12,7 +12,8 @@ import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  // Actualisation automatique : au retour sur l'onglet, à la reconnexion réseau et périodiquement (voir lib/live.ts).
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, refetchOnReconnect: true } },
 })
 
 export default function App() {

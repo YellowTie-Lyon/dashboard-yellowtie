@@ -23,6 +23,7 @@ import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { formatBytes, formatRelativeTime } from '../lib/format'
 import { ANOMALY_LABELS } from '../lib/labels'
+import { LIVE } from '../lib/live'
 import { useNow } from '../lib/useNow'
 import type { ImportSitesResult, Site } from '../lib/types'
 
@@ -32,18 +33,18 @@ export function HostingPage() {
   const queryClient = useQueryClient()
   const { canWrite } = useWorkspace()
 
-  const hosting = useQuery({ queryKey: ['hosting', hostingId], queryFn: () => fetchHosting(hostingId) })
+  const hosting = useQuery({ queryKey: ['hosting', hostingId], queryFn: () => fetchHosting(hostingId), refetchInterval: LIVE.normal })
   const cloudId = hosting.data?.cloud_server_id
   const cloud = useQuery({
     queryKey: ['cloud', cloudId],
     queryFn: () => fetchCloud(cloudId!),
     enabled: Boolean(cloudId),
   })
-  const sites = useQuery({ queryKey: ['sites', hostingId], queryFn: () => fetchSites(hostingId) })
+  const sites = useQuery({ queryKey: ['sites', hostingId], queryFn: () => fetchSites(hostingId), refetchInterval: LIVE.slow })
   const agentState = useQuery({
     queryKey: ['hosting-state', hostingId],
     queryFn: async () => (await fetchHostingStates([hostingId]))[0] ?? null,
-    refetchInterval: 30_000,
+    refetchInterval: LIVE.fast,
   })
   const now = useNow()
 
