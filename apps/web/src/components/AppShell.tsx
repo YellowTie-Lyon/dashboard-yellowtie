@@ -13,9 +13,9 @@ export function AppShell() {
               aria-hidden
               className="grid size-7 place-items-center rounded-md bg-yellow-400 text-xs font-bold text-slate-900"
             >
-              YT
+              YS
             </span>
-            <span className="font-semibold tracking-tight">YellowTie Monitor</span>
+            <span className="font-semibold tracking-tight">YellowScope</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-slate-500 sm:inline dark:text-slate-400">{user?.email}</span>

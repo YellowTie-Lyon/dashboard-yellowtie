@@ -38,10 +38,10 @@ export function LoginPage() {
             aria-hidden
             className="grid size-8 place-items-center rounded-md bg-yellow-400 text-sm font-bold text-slate-900"
           >
-            YT
+            YS
           </span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight">YellowTie Monitor</h1>
+            <h1 className="text-lg font-semibold leading-tight">YellowScope</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">Accès sur invitation</p>
           </div>
         </div>

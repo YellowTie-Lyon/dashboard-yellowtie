@@ -1,4 +1,4 @@
-# Architecture – YellowTie Monitor
+# Architecture – YellowScope
 
 Supervision de Serveurs Cloud managés Infomaniak hébergeant des sites WordPress/WooCommerce.
 Ce document est la source de vérité de l'architecture validée avant le début du développement.

@@ -1,4 +1,4 @@
-# YellowTie Monitor
+# YellowScope
 
 Supervision de Serveurs Cloud managés Infomaniak (sites WordPress/WooCommerce) : santé en quasi temps réel,
 incidents, alertes Discord et diagnostic de trafic.
