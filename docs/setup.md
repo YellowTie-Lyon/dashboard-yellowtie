@@ -233,3 +233,11 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 4. Les envois passent par **pg_net** (déjà requis pour les sondes) et **pg_cron** (chaque minute), avec 3 tentatives ; l'historique des derniers envois est dans la même carte.
 5. Migration `…0013_slack_notifications.sql` : appliquée par GitHub Actions après « push main ».
 
+### Mentions (« ping ») et messages de test
+
+- **Qui mentionner** (Réglages > Notifications Slack) : personne, **@here** (membres du salon connectés), **@channel** (tous les membres), ou une/plusieurs personnes ou un groupe. Pour une personne : dans Slack, ouvrez son profil, menu ⋮, **Copier l'ID du membre** (commence par U) ; un groupe d'utilisateurs a un identifiant qui commence par S. Trois mentions au plus.
+- La mention s'applique aux **alertes et rappels Critical** ; case à cocher pour l'étendre aux **Warning** ; jamais au retour à la normale. Elle est placée dans le texte principal du message (c'est ce qui déclenche la notification Slack).
+- **Un exemple de chaque notification** : sept boutons de test (simple, alerte Critical, alerte Warning, rappel, retour à la normale, Cloud hors ligne, agent silencieux). Messages marqués [TEST], données fictives, mais mêmes couleurs, même mention, même bouton que les vrais.
+- Si le ping n'arrive pas : Slack peut restreindre qui a le droit d'utiliser @channel / @here dans un salon (réglage du salon ou de l'espace de travail) ; un membre doit aussi être présent dans le salon privé pour être notifié.
+- Migration `…0014_slack_mentions.sql` : appliquée par GitHub Actions après « push main ».
+

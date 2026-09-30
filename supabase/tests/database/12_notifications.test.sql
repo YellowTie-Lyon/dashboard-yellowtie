@@ -1,6 +1,6 @@
 -- Tests pgTAP : notifications Slack (règles d'envoi, secret du webhook, file d'attente, tentatives, rappels, droits).
 begin;
-select plan(44);
+select plan(63);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'owner@example.test'),   -- propriétaire
@@ -147,6 +147,48 @@ select public.tests_as('00000000-0000-0000-0000-00000000000a');
 select isnt(public.send_test_notification(), null, 'le propriétaire envoie un message de test');
 reset role;
 select is((select count(*)::int from public.notification_outbox where kind = 'test' and status = 'sending'), 1, 'le test part immédiatement');
+
+-- ============================ Mentions ==========================================================
+delete from public.notification_outbox;
+update public.incidents set status = 'closed', ended_at = now();
+set local role authenticated;
+select public.tests_as('00000000-0000-0000-0000-00000000000a');
+select throws_ok($$select public.save_notification_settings(null, true, 'warning', true, 30, null, '@everyone', false)$$, '23514', null, 'une mention libre est refusée (formats Slack uniquement)');
+select throws_ok($$select public.save_notification_settings(null, true, 'warning', true, 30, null, '<!here> <!channel> <!here> <!channel>', false)$$, '23514', null, 'au plus 3 mentions');
+select lives_ok($$select public.save_notification_settings(null, true, 'warning', true, 30, null, '<!here> <@U012ABCDEF>', false)$$, 'mentions valides : @here et une personne');
+select is((select mention from public.notification_settings), '<!here> <@U012ABCDEF>', 'mention enregistrée');
+reset role;
+select public.sync_incident('00000000-0000-0000-0000-0000000000c1', null, 'performance', 'critical', public.tests_reason('cpu_pct', 'critical', 92), null);
+select alike((select payload ->> 'text' from public.notification_outbox where kind = 'alert' order by id desc limit 1), '<!here> <@U012ABCDEF> 🔴 Critical%', 'l''alerte Critical commence par la mention (elle déclenche le ping)');
+select unalike((select summary from public.notification_outbox where kind = 'alert' order by id desc limit 1), '<%', 'l''historique n''affiche pas la mention');
+select public.sync_incident('00000000-0000-0000-0000-0000000000c1', null, 'disk', 'warning', public.tests_reason('disk_used_pct', 'warning', 82), null);
+select unalike((select payload ->> 'text' from public.notification_outbox where kind = 'alert' and payload ->> 'text' like '%Warning%' order by id desc limit 1), '<!here>%', 'un Warning ne mentionne pas par défaut');
+update public.notification_settings set mention_warning = true;
+update public.incidents set status = 'closed', ended_at = now() where kind = 'disk';
+select public.sync_incident('00000000-0000-0000-0000-0000000000c1', null, 'disk', 'warning', public.tests_reason('disk_used_pct', 'warning', 83), null);
+select alike((select payload ->> 'text' from public.notification_outbox where kind = 'alert' and payload ->> 'text' like '%Warning%' order by id desc limit 1), '<!here>%', 'option cochée : le Warning mentionne aussi');
+update public.incidents set recovery_since = now() - interval '10 minutes', status = 'recovery' where kind = 'performance' and status <> 'closed';
+select public.sync_incident('00000000-0000-0000-0000-0000000000c1', null, 'performance', 'ok', '[]'::jsonb, null);
+select unalike((select payload ->> 'text' from public.notification_outbox where kind = 'recovery' order by id desc limit 1), '<%', 'le retour à la normale ne mentionne personne');
+
+-- ============================ Un message de test de chaque notification =========================
+delete from public.notification_outbox;
+update public.notification_settings set mention = '<!channel>', mention_warning = false;
+set local role authenticated;
+select public.tests_as('00000000-0000-0000-0000-00000000000a');
+select lives_ok($$select public.send_test_notification('critical'), public.send_test_notification('warning'), public.send_test_notification('reminder'),
+  public.send_test_notification('recovery'), public.send_test_notification('offline'), public.send_test_notification('agent'), public.send_test_notification('basic')$$,
+  'les 7 messages de test sont acceptés');
+select throws_ok($$select public.send_test_notification('inconnu')$$, '22023', 'unknown test type', 'type de test inconnu refusé');
+reset role;
+select is((select count(*)::int from public.notification_outbox where kind = 'test'), 7, 'sept tests en file');
+select is((select count(*)::int from public.notification_outbox where kind = 'test' and payload::text like '%[TEST]%'), 7, 'tous marqués [TEST]');
+select alike((select payload ->> 'text' from public.notification_outbox where summary like '%Critical · Cloud de démonstration' order by id limit 1), '<!channel> 🔴 [TEST] Critical%', 'test Critical avec mention');
+select unalike((select payload ->> 'text' from public.notification_outbox where summary like '🟠 [TEST] Warning · Cloud de démonstration' limit 1), '<!channel>%', 'test Warning sans mention (option décochée)');
+select unalike((select payload ->> 'text' from public.notification_outbox where summary like '✅%' limit 1), '<!channel>%', 'test « retour à la normale » sans mention');
+select alike((select payload ->> 'text' from public.notification_outbox where summary like '%Toujours en Critical%' limit 1), '<!channel>%', 'test de rappel avec mention');
+select is((select payload -> 'attachments' -> 0 ->> 'color' from public.notification_outbox where summary like '✅%' limit 1), '#22c55e', 'couleurs identiques aux vraies notifications');
+select is((select count(*)::int from public.notification_outbox where kind = 'test' and payload::text like '%/incidents%'), 6, 'les tests d''incident portent le bouton vers les incidents');
 
 select * from finish();
 rollback;

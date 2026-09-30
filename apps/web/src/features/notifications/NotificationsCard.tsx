@@ -3,9 +3,10 @@ import { useState, type FormEvent } from 'react'
 import { ErrorNote } from '../../components/ErrorNote'
 import { btn, btnDanger, btnPrimary, card, input, labelMono, mutedText } from '../../components/ui'
 import { formatRelativeTime } from '../../lib/format'
+import { mentionChoice, mentionForInput, parseMentions, type MentionChoice } from '../../lib/slack'
 import { useNow } from '../../lib/useNow'
 import { useWorkspace } from '../workspace/useWorkspace'
-import { fetchNotificationLog, fetchNotificationSettings, saveNotificationSettings, sendTestNotification, type NotificationLog, type NotificationSettings } from './api'
+import { fetchNotificationLog, fetchNotificationSettings, saveNotificationSettings, sendTestNotification, type NotificationLog, type NotificationSettings, type TestType } from './api'
 
 const STATUS: Record<NotificationLog['status'], { label: string; cls: string }> = {
   pending: { label: 'En attente', cls: 'text-slate-300' },
@@ -13,6 +14,15 @@ const STATUS: Record<NotificationLog['status'], { label: string; cls: string }> 
   sent: { label: 'Envoyé', cls: 'text-green-400' },
   failed: { label: 'Échec', cls: 'text-red-400' },
 }
+const TESTS: { type: TestType; label: string; hint: string }[] = [
+  { type: 'basic', label: 'Test simple', hint: 'Vérifie que le canal reçoit les messages' },
+  { type: 'critical', label: 'Alerte Critical', hint: 'Cloud en Critical (rouge, avec mention)' },
+  { type: 'warning', label: 'Alerte Warning', hint: 'Cloud en Warning (orange)' },
+  { type: 'reminder', label: 'Rappel', hint: 'Incident toujours Critical' },
+  { type: 'recovery', label: 'Retour à la normale', hint: 'Incident clos (vert)' },
+  { type: 'offline', label: 'Cloud hors ligne', hint: 'Plus aucun agent ne répond' },
+  { type: 'agent', label: 'Agent silencieux', hint: 'Un agent ne répond plus' },
+]
 const KIND: Record<NotificationLog['kind'], string> = { alert: 'Alerte', recovery: 'Retour à la normale', reminder: 'Rappel', test: 'Test' }
 
 function friendly(error: unknown): unknown {
@@ -39,6 +49,10 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
   const [minLevel, setMinLevel] = useState<'warning' | 'critical'>(settings?.min_level ?? 'critical')
   const [notifyRecovery, setNotifyRecovery] = useState(settings?.notify_recovery ?? true)
   const [reminder, setReminder] = useState(settings?.reminder_minutes ?? 30)
+  const [choice, setChoice] = useState<MentionChoice>(mentionChoice(settings?.mention))
+  const [custom, setCustom] = useState(mentionChoice(settings?.mention) === 'custom' ? mentionForInput(settings?.mention) : '')
+  const [mentionWarning, setMentionWarning] = useState(settings?.mention_warning ?? false)
+  const [localError, setLocalError] = useState<unknown>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['notification-settings'] })
@@ -47,15 +61,16 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
   const hasWebhook = Boolean(settings?.has_webhook)
 
   const save = useMutation({
-    mutationFn: (webhookUrl: string | null) => saveNotificationSettings({ webhookUrl, enabled, minLevel, notifyRecovery, reminderMinutes: reminder }),
-    onSuccess: async (_d, webhookUrl) => {
-      setNotice(webhookUrl === '' ? 'Adresse du webhook supprimée : les notifications sont désactivées.' : 'Réglages enregistrés.')
+    mutationFn: (v: { webhookUrl: string | null; mention: string | null }) =>
+      saveNotificationSettings({ webhookUrl: v.webhookUrl, enabled, minLevel, notifyRecovery, reminderMinutes: reminder, mention: v.mention, mentionWarning }),
+    onSuccess: async (_d, v) => {
+      setNotice(v.webhookUrl === '' ? 'Adresse du webhook supprimée : les notifications sont désactivées.' : 'Réglages enregistrés.')
       setWebhook('')
       await refresh()
     },
   })
   const test = useMutation({
-    mutationFn: sendTestNotification,
+    mutationFn: (type: TestType) => sendTestNotification(type),
     onSuccess: async () => {
       setNotice('Message de test envoyé : il doit apparaître dans votre canal Slack dans quelques secondes.')
       await refresh()
@@ -63,10 +78,22 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
     },
   })
 
+  function mentionValue(): string | null {
+    if (choice === 'none') return ''
+    if (choice === 'here') return '<!here>'
+    if (choice === 'channel') return '<!channel>'
+    return parseMentions(custom)
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault()
     setNotice(null)
-    save.mutate(webhook.trim() ? webhook.trim() : null)
+    setLocalError(null)
+    const mention = mentionValue()
+    if (mention === null) {
+      return setLocalError(new Error("Mention invalide : saisissez l'identifiant Slack d'un membre (commence par U) ou d'un groupe (commence par S), 3 au plus."))
+    }
+    save.mutate({ webhookUrl: webhook.trim() ? webhook.trim() : null, mention })
   }
   const disabled = !canWrite || save.isPending
 
@@ -133,6 +160,42 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
           </label>
         </div>
 
+        <div className="rounded-xl border border-white/10 p-4">
+          <label className="block text-sm font-medium">
+            Qui mentionner (« pinguer ») dans l'alerte ?
+            <select value={choice} disabled={disabled} onChange={(e) => setChoice(e.target.value as MentionChoice)} className={input}>
+              <option value="none">Personne</option>
+              <option value="here">@here : les membres du salon connectés</option>
+              <option value="channel">@channel : tous les membres du salon</option>
+              <option value="custom">Une ou plusieurs personnes / un groupe</option>
+            </select>
+          </label>
+          {choice === 'custom' && (
+            <label className="mt-3 block text-sm font-medium">
+              Identifiants Slack
+              <input
+                type="text"
+                spellCheck={false}
+                disabled={disabled}
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                placeholder="U012ABCDEF  S0123ABCDE"
+                className={`${input} font-mono`}
+              />
+              <span className="mt-1 block text-xs font-normal text-slate-500">
+                Membre : dans Slack, ouvrez son profil, menu ⋮, <strong>Copier l'ID du membre</strong> (commence par U). Groupe d'utilisateurs : son identifiant commence par S.
+                Séparez par un espace, 3 au plus.
+              </span>
+            </label>
+          )}
+          {choice !== 'none' && (
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={mentionWarning} disabled={disabled} onChange={(e) => setMentionWarning(e.target.checked)} />
+              Mentionner aussi pour les Warning (par défaut : seulement Critical et rappels)
+            </label>
+          )}
+        </div>
+
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={notifyRecovery} disabled={disabled} onChange={(e) => setNotifyRecovery(e.target.checked)} />
           Prévenir aussi du retour à la normale
@@ -142,7 +205,7 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
           Activer les notifications Slack
         </label>
 
-        <ErrorNote error={friendly(save.error ?? test.error)} />
+        <ErrorNote error={localError ?? friendly(save.error ?? test.error)} />
         {notice && <p role="status" className="text-sm text-green-300">{notice}</p>}
 
         {canWrite ? (
@@ -150,11 +213,8 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
             <button type="submit" className={btnPrimary} disabled={save.isPending}>
               {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
             </button>
-            <button type="button" className={btn} disabled={!hasWebhook || test.isPending} onClick={() => { setNotice(null); test.mutate() }}>
-              {test.isPending ? 'Envoi…' : 'Envoyer un message de test'}
-            </button>
             {hasWebhook && (
-              <button type="button" className={btnDanger} disabled={save.isPending} onClick={() => { setNotice(null); save.mutate('') }}>
+              <button type="button" className={btnDanger} disabled={save.isPending} onClick={() => { setNotice(null); save.mutate({ webhookUrl: '', mention: null }) }}>
                 Supprimer l'adresse
               </button>
             )}
@@ -163,6 +223,22 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
           <p className={mutedText}>Seuls les propriétaires peuvent modifier ces réglages.</p>
         )}
       </form>
+
+      {canWrite && (
+        <div className="mt-5">
+          <h3 className={labelMono}>Envoyer un exemple de chaque notification</h3>
+          <p className={`mt-1 text-xs ${mutedText}`}>
+            Messages marqués [TEST], avec des données fictives, mais identiques aux vrais (couleurs, mention, bouton). Enregistrez d'abord vos réglages.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {TESTS.map((t) => (
+              <button key={t.type} type="button" className={btn} title={t.hint} disabled={!hasWebhook || test.isPending} onClick={() => { setNotice(null); test.mutate(t.type) }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {log.length > 0 && (
         <div className="mt-5">
