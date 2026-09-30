@@ -10,9 +10,9 @@ insert into public.workspace_members (workspace_id, user_id, role)
 select id, '00000000-0000-0000-0000-00000000000b', 'viewer' from public.workspaces;
 insert into public.cloud_servers (id, workspace_id, name, slug)
 select '00000000-0000-0000-0000-0000000000c1', id, 'Cloud 1', 'cloud-1' from public.workspaces;
-insert into auth.mfa_factors (user_id, factor_type, status) values
-  ('00000000-0000-0000-0000-00000000000a', 'totp', 'verified'),
-  ('00000000-0000-0000-0000-00000000000b', 'totp', 'unverified');   -- inscription abandonnée : ne compte pas
+insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at) values
+  (gen_random_uuid(), '00000000-0000-0000-0000-00000000000a', 'test-a', 'totp', 'verified', now(), now()),
+  (gen_random_uuid(), '00000000-0000-0000-0000-00000000000b', 'test-b', 'totp', 'unverified', now(), now());   -- inscription abandonnée : ne compte pas
 
 create function public.tests_as(_uid uuid, _aal text default 'aal2') returns void language plpgsql as $$
 begin

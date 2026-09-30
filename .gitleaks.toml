@@ -5,5 +5,5 @@
 useDefault = true
 
 [allowlist]
-description = "Valeurs factices des tests de l'agent"
-paths = ['''^agent/tests/''']
+description = "Valeurs factices des tests (agent, logique de la fonction Edge)"
+paths = ['''^agent/tests/''', '''^supabase/functions/manage-users/logic\.test\.mjs$''']
