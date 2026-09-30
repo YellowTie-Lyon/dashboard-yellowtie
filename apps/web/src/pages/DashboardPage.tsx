@@ -1,38 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { btnPrimary, mutedText } from '../components/ui'
-import { fetchCloudStatuses } from '../features/alerts/api'
 import { CloudPanel } from '../features/dashboard/CloudPanel'
 import { StatusBanner } from '../features/dashboard/StatusBanner'
-import { fetchIncidents } from '../features/incidents/api'
-import { isOpen } from '../lib/incidents'
-import { fetchHostingStates, fetchCloudStates, fetchClouds } from '../features/inventory/api'
+import { useDashboardData } from '../features/dashboard/useDashboardData'
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { errorMessage } from '../lib/errors'
-import { LIVE } from '../lib/live'
-import { useNow } from '../lib/useNow'
 
 export function DashboardPage() {
   const navigate = useNavigate()
   const { workspace, canWrite, isPending: workspacePending, error: workspaceError } = useWorkspace()
-  const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds, refetchInterval: LIVE.slow })
-  const states = useQuery({ queryKey: ['cloud-states'], queryFn: fetchCloudStates, refetchInterval: LIVE.fast })
-  const statuses = useQuery({ queryKey: ['cloud-statuses'], queryFn: fetchCloudStatuses, refetchInterval: LIVE.fast })
-  const statusByCloud = new Map((statuses.data ?? []).map((st) => [st.cloud_server_id, st]))
-  const now = useNow()
-  const hostingIds = (clouds.data ?? []).flatMap((c) => c.web_hostings.map((h) => h.id))
-  const hostingStates = useQuery({
-    queryKey: ['hosting-states', 'all', hostingIds],
-    queryFn: () => fetchHostingStates(hostingIds),
-    enabled: clouds.isSuccess,
-    refetchInterval: LIVE.fast,
-  })
-  const hostingStateById = new Map((hostingStates.data ?? []).map((h) => [h.web_hosting_id, h]))
-  const incidents = useQuery({ queryKey: ['incidents', 'open-list'], queryFn: () => fetchIncidents({ limit: 100 }), refetchInterval: LIVE.fast })
-  const openIncidents = (incidents.data ?? []).filter(isOpen)
-  const stateByCloud = new Map((states.data ?? []).map((st) => [st.cloud_server_id, st]))
+  const { clouds, now, statusByCloud, stateByCloud, hostingStateById, openIncidents } = useDashboardData()
   const [creating, setCreating] = useState(false)
 
   return (

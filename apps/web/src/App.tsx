@@ -14,6 +14,7 @@ import { HostingPage } from './pages/HostingPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TvPage } from './pages/TvPage'
 
 const queryClient = new QueryClient({
   // Actualisation automatique : au retour sur l'onglet, à la reconnexion réseau et périodiquement, tout en même temps (voir lib/live.ts).
@@ -31,6 +32,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<RequireAuth />}>
+              <Route path="tv" element={<TvPage />} />
               <Route element={<AppShell />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="clouds/:cloudId" element={<CloudPage />} />

@@ -203,3 +203,12 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
    brute n'est envoyée ni stockée.
 7. Migration `…0009_traffic.sql` : appliquée par GitHub Actions après « push main ».
 
+## Phase 8 : exploitation, mobile / tablette / TV
+
+- **Réglages** affiche maintenant l'état des **tâches planifiées** et le **stockage de la base** (quota Free de 500 Mo). Une pastille orange
+  « Système : … à vérifier » apparaît dans l'en-tête seulement si quelque chose est en retard ou si le quota approche.
+- **Mobile et tablette** : la navigation passe sur sa propre ligne, les boutons sont plus grands au toucher, les mesures s'adaptent à la largeur.
+- **Mode TV** : menu **Mode TV** (ou `/tv`). Plein écran sans bouton, écran maintenu allumé, curseur masqué. Idéal pour une TV Full HD ou 4K.
+- **Mode d'emploi** : `docs/RUNBOOK.md` (que faire si un Cloud est offline, si un agent se tait, si le stockage grimpe, etc.).
+- Migration `…0010_storage_stats.sql` : appliquée par GitHub Actions après « push main ».
+

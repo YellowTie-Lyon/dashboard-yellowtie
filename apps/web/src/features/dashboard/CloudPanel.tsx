@@ -43,7 +43,7 @@ function levelFor(status: CloudStatusRow | undefined, metrics: Metric[]): Level 
  *   1. état + verdict, 2. les quatre mesures (+ tendance du load), 3. « où regarder » : hébergements puis domaines les plus sollicités.
  */
 export function CloudPanel({
-  cloud, state, status, hostingStates, openIncidents, now,
+  cloud, state, status, hostingStates, openIncidents, now, tv = false,
 }: {
   cloud: CloudWithCounts
   state: CloudState | undefined
@@ -51,6 +51,8 @@ export function CloudPanel({
   hostingStates: Map<string, HostingState>
   openIncidents: Incident[]
   now: number
+  /** Mode TV : aucun bouton, 5 domaines, lecture à distance. */
+  tv?: boolean
 }) {
   const [windowMin, setWindowMin] = useState(15)
   const windowLabel = windowMin === 15 ? 'les 15 dernières minutes' : 'la dernière heure'
@@ -68,7 +70,7 @@ export function CloudPanel({
   const maxReq = Math.max(1, ...hostings.map((h) => h.share?.requests ?? 0))
 
   return (
-    <article className={`rounded-2xl border bg-white/[0.03] p-6 ${ACCENT[overall] ?? 'border-white/10'}`}>
+    <article className={`@container rounded-2xl border bg-white/[0.03] p-4 sm:p-6 ${ACCENT[overall] ?? 'border-white/10'}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-tight">
@@ -94,7 +96,7 @@ export function CloudPanel({
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-3 @lg:grid-cols-4">
         <MetricTile label="Load" icon="load" value={formatLoad(p?.load1)} fill={p ? p.load1_per_core * 100 : null} level={levelFor(status, ['load1_per_core', 'load1', 'load5', 'load5_per_core'])} stale={stale} />
         <MetricTile label="CPU" icon="cpu" value={formatPercent(p?.cpu_pct)} fill={p?.cpu_pct ?? null} level={levelFor(status, ['cpu_pct'])} stale={stale} />
         <MetricTile label="RAM" icon="ram" value={formatPercent(p?.mem_used_pct)} fill={p?.mem_used_pct ?? null} level={levelFor(status, ['mem_used_pct', 'swap_used_pct'])} stale={stale} />
@@ -103,13 +105,13 @@ export function CloudPanel({
 
       <div className="mt-4">
         <p className={labelMono}>Load · dernière heure</p>
-        <div className="mt-1"><Sparkline values={(series.data ?? []).map((x) => x.load1_avg)} label="Load, dernière heure" /></div>
+        <div className="mt-1"><Sparkline values={(series.data ?? []).map((x) => x.load1_avg)} label="Load, dernière heure" className={tv ? 'h-9' : 'h-12'} /></div>
       </div>
 
       <section className="mt-6 border-t border-white/10 pt-5" aria-label="Où regarder">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className={labelMono}>1 · Hébergements · {windowLabel}</h3>
-          <div role="group" aria-label="Période du trafic" className="flex gap-1">
+          <div role="group" aria-label="Période du trafic" className={`flex gap-1 ${tv ? 'hidden' : ''}`}>
             {WINDOWS.map((w) => (
               <button
                 key={w.minutes}
@@ -149,7 +151,14 @@ export function CloudPanel({
                       )}
                     </span>
                     <span className="shrink-0 text-sm tabular-nums text-slate-300">
-                      {h.share ? `${formatRate(req, windowMin)} · ${formatShare(h.share.share)}` : <span className="text-slate-500">—</span>}
+                      {h.share ? (
+                        <>
+                          <span className="hidden sm:inline">{formatRate(req, windowMin)} · </span>
+                          {formatShare(h.share.share)}
+                        </>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
                     </span>
                   </div>
                   <div className="mt-1 h-1 rounded-full bg-white/10">
@@ -164,14 +173,14 @@ export function CloudPanel({
         <h3 className={`mt-6 ${labelMono}`}>2 · Domaines les plus sollicités</h3>
         <div className="mt-3">
           {rows.length > 0 ? (
-            <TopDomains rows={rows} minutes={windowMin} />
+            <TopDomains rows={rows} minutes={windowMin} compact={tv} />
           ) : (
             <p className="text-sm text-slate-500">
               {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.3.1 est installé (analyse chaque minute)."}
             </p>
           )}
         </div>
-        <p className="mt-4 text-xs text-slate-500">Nombre de requêtes reçues : un repère, pas une cause. Un domaine très sollicité est « potentiellement impliqué » dans une charge.</p>
+        <p className={`mt-4 text-xs text-slate-500 ${tv ? 'hidden' : ''}`}>Nombre de requêtes reçues : un repère, pas une cause. Un domaine très sollicité est « potentiellement impliqué » dans une charge.</p>
       </section>
     </article>
   )

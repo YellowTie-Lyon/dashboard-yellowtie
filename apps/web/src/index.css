@@ -61,3 +61,21 @@ body {
   --chart-grid: #2c2c2a;
   --chart-axis: #383835;
 }
+
+/* Mode TV : la taille de base (rem) suit la largeur de l'écran, de 14 px (petit écran) à 36 px (4K). */
+html.tv {
+  font-size: clamp(14px, 0.82vw, 36px);
+}
+
+/* Écrans tactiles (mobile, tablette) : zones de toucher d'au moins 40 px. */
+@media (pointer: coarse) {
+  button,
+  select,
+  input:not([type='checkbox']):not([type='radio']) {
+    min-height: 2.5rem;
+  }
+  nav a,
+  header a {
+    padding-block: 0.5rem;
+  }
+}

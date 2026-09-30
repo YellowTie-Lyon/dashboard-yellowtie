@@ -399,8 +399,16 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 4 | Graphiques et données : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | Fait |
 | 5 | Seuils, statuts, silences, sondes (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | Fait |
 | 6 | Incidents et historique (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | Fait |
-| **7** | **Diagnostic de trafic** : agent 0.3.0 (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | **En cours de validation** |
-| 8 | Durcissement, runbook, production | À faire |
+| 7 | Diagnostic de trafic : agent 0.3.x (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | Fait |
+| **8** | **Exploitation** : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | **En cours de validation** |
+
+**Exploitation (phase 8)** : `get_storage_stats()` (SECURITY DEFINER, membres seulement) renvoie la taille de la base et des 10
+plus grosses tables ; Réglages affiche le quota (500 Mo en offre Free), l'état des six tâches planifiées (`evaluate`, `rollup`,
+`traffic`, `probes`, `purge`, `traffic_purge`, avec leur retard toléré) et l'en-tête montre une pastille « Système » seulement en
+cas de problème (tâche essentielle en retard ou jamais exécutée, stockage ≥ 70 %). Interface : conteneur `@container` sur les
+panneaux Cloud (mesures 2 × 2 ou 4 × 1 selon la largeur réelle), navigation sur deux lignes en dessous de 1024 px, zones de toucher
+de 2,5 rem sur écran tactile ; **mode TV** (`/tv`) : sans bouton, taille de base proportionnelle à la largeur (14 px → 36 px), écran
+maintenu allumé (Wake Lock), curseur masqué après 5 s. Le mode d'emploi est dans `docs/RUNBOOK.md`.
 
 ## 13. Évolutions prévues (non développées au MVP)
 

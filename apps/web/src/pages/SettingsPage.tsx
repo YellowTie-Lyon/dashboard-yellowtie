@@ -11,6 +11,7 @@ import { fetchJobStates } from '../features/metrics/api'
 import { formatRelativeTime } from '../lib/format'
 import { LIVE } from '../lib/live'
 import { useNow } from '../lib/useNow'
+import { SystemHealth } from '../features/health/SystemHealth'
 
 export function SettingsPage() {
   const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds, refetchInterval: LIVE.slow })
@@ -55,6 +56,8 @@ export function SettingsPage() {
       </div>
 
       <CloseDelayCard />
+
+      <SystemHealth />
 
       <div className={card}>
         <h2 className="font-semibold">Sondes et notifications</h2>
