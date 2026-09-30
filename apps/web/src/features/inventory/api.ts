@@ -31,7 +31,7 @@ export interface HostingInput {
 export async function fetchClouds(): Promise<CloudWithCounts[]> {
   const { data, error } = await getSupabase()
     .from('cloud_servers')
-    .select('*, web_hostings(id, sites(count))')
+    .select('*, web_hostings(id, name, sites(count))')
     .order('name')
   if (error) throw error
   return data as CloudWithCounts[]

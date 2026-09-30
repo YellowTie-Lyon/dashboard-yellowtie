@@ -17,7 +17,7 @@ export interface CloudServer {
 
 /** Server Cloud avec, pour chaque hébergement, le nombre de sites (agrégat PostgREST). */
 export interface CloudWithCounts extends CloudServer {
-  web_hostings: { id: string; sites: { count: number }[] }[]
+  web_hostings: { id: string; name: string; sites: { count: number }[] }[]
 }
 
 export interface WebHosting {

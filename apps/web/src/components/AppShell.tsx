@@ -3,6 +3,7 @@ import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
 import { fetchOpenIncidentCount } from '../features/incidents/api'
 import { LIVE } from '../lib/live'
+import { Logo } from './Logo'
 import { LiveIndicator } from './LiveIndicator'
 
 export function AppShell() {
@@ -12,17 +13,12 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <header className="sticky top-0 z-10 border-b border-yellow-400/30 bg-white/90 backdrop-blur dark:bg-slate-950/90">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span
-              aria-hidden
-              className="grid size-7 place-items-center rounded-md bg-yellow-400 text-xs font-bold text-slate-900"
-            >
-              YS
-            </span>
-            <Link to="/" className="font-semibold tracking-tight">
-              YellowScope
+            <Logo />
+            <Link to="/" className="text-lg font-bold tracking-tight">
+              Yellow<span className="text-yellow-400">Scope</span>
             </Link>
             <Link to="/incidents" className="ml-4 flex items-center gap-1.5 text-sm text-slate-500 hover:underline dark:text-slate-400">
               Incidents

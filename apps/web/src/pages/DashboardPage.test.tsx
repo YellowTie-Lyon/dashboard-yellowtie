@@ -12,12 +12,14 @@ let canWrite = true
 
 vi.mock('../features/inventory/api', async () => {
   const actual = await vi.importActual<typeof import('../features/inventory/api')>('../features/inventory/api')
-  return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates() }
+  return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates(), fetchHostingStates: () => Promise.resolve([]) }
 })
 vi.mock('../features/alerts/api', async () => {
   const actual = await vi.importActual<typeof import('../features/alerts/api')>('../features/alerts/api')
   return { ...actual, fetchCloudStatuses: () => fetchCloudStatuses() }
 })
+vi.mock('../features/incidents/api', () => ({ fetchIncidents: () => Promise.resolve([]) }))
+vi.mock('../features/metrics/api', () => ({ fetchSeries: () => Promise.resolve([]) }))
 vi.mock('../features/workspace/useWorkspace', () => ({
   useWorkspace: () => ({
     workspace: { id: 'w1', name: 'YellowTie', role: canWrite ? 'owner' : 'viewer' },
@@ -88,12 +90,12 @@ describe('DashboardPage', () => {
     fetchClouds.mockResolvedValue([
       cloud({
         web_hostings: [
-          { id: 'h1', sites: [{ count: 9 }] },
-          { id: 'h2', sites: [{ count: 24 }] },
-          { id: 'h3', sites: [{ count: 29 }] },
+          { id: 'h1', name: 'Hébergement h1', sites: [{ count: 9 }] },
+          { id: 'h2', name: 'Hébergement h2', sites: [{ count: 24 }] },
+          { id: 'h3', name: 'Hébergement h3', sites: [{ count: 29 }] },
         ],
       }),
-      cloud({ id: 'c2', name: 'YellowTie Server Cloud 2', web_hostings: [{ id: 'h4', sites: [{ count: 1 }] }] }),
+      cloud({ id: 'c2', name: 'YellowTie Server Cloud 2', web_hostings: [{ id: 'h4', name: 'Hébergement h4', sites: [{ count: 1 }] }] }),
     ])
     renderPage()
     expect(await screen.findByText('YellowTie Server Cloud 1')).toBeInTheDocument()
@@ -111,7 +113,7 @@ describe('DashboardPage', () => {
   })
 
   it('affiche les valeurs du dernier relevé et le statut calculé', async () => {
-    fetchClouds.mockResolvedValue([cloud({ web_hostings: [{ id: 'h1', sites: [{ count: 3 }] }] })])
+    fetchClouds.mockResolvedValue([cloud({ web_hostings: [{ id: 'h1', name: 'Hébergement h1', sites: [{ count: 3 }] }] })])
     const nowIso = new Date().toISOString()
     fetchCloudStates.mockResolvedValue([
       {
@@ -148,7 +150,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('2,43')).toBeInTheDocument()
     expect(screen.getByText('33,1 %')).toBeInTheDocument()
     expect(screen.getByText('50,3 %')).toBeInTheDocument()
-    expect(screen.getByText(/Dernière donnée : à l'instant/)).toBeInTheDocument()
+    expect(screen.getByText(/à l'instant/)).toBeInTheDocument()
   })
 
   it('affiche un Warning avec sa raison principale', async () => {
@@ -159,7 +161,7 @@ describe('DashboardPage', () => {
       }),
     ])
     renderPage()
-    expect(await screen.findByText('Warning')).toBeInTheDocument()
+    expect((await screen.findAllByText('Warning')).length).toBeGreaterThan(0)
     expect(screen.getByText('CPU 82 %')).toBeInTheDocument()
   })
 
@@ -178,7 +180,14 @@ describe('DashboardPage', () => {
       reasons: [{ metric: 'load1_per_core', level: 'critical', value: 1.4, warn: 0.6, crit: 1, since: new Date().toISOString() }],
     }, 'c2'), status('normal', {}, 'c1')])
     renderPage()
-    expect(await screen.findByText('Critical')).toBeInTheDocument()
+    expect((await screen.findAllByText('Critical')).length).toBeGreaterThan(0)
     expect(screen.getByText('Normal')).toBeInTheDocument()
+  })
+
+  it('liste les hébergements de chaque Cloud avec un lien vers leur page', async () => {
+    fetchClouds.mockResolvedValue([cloud({ web_hostings: [{ id: 'h1', name: 'Hébergement 1', sites: [{ count: 3 }] }] })])
+    renderPage()
+    expect(await screen.findByRole('link', { name: /Hébergement 1/ })).toHaveAttribute('href', '/hostings/h1')
+    expect(screen.getByText(/agent non installé/)).toBeInTheDocument()
   })
 })

@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Thème sombre permanent (charte YellowTie : noir et jaune) : la classe « dark » est posée sur <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * Jetons de design. Les 4 statuts de supervision sont définis ici une seule fois
  * (couleur + fond léger) et réutilisés par <StatusBadge /> et, plus tard, les cartes/graphiques.
@@ -8,18 +11,34 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --color-status-normal: #16a34a;
+  /* Neutres chauds : la palette « slate » est remplacée par des noirs et gris de la charte. */
+  --color-slate-50: #fafaf9;
+  --color-slate-100: #f4f4f2;
+  --color-slate-200: #e5e5e1;
+  --color-slate-300: #d4d4cf;
+  --color-slate-400: #a3a39d;
+  --color-slate-500: #8a8a84;
+  --color-slate-600: #5c5c57;
+  --color-slate-700: #3a3a37;
+  --color-slate-800: #262624;
+  --color-slate-900: #161615;
+  --color-slate-950: #0a0a09;
+  --color-brand: #facc15;
+
+  --color-status-normal: #22c55e;
   --color-status-warning: #d97706;
   --color-status-critical: #dc2626;
   --color-status-offline: #6b7280;
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  background-image: radial-gradient(60rem 24rem at 50% -8rem, rgb(250 204 21 / 0.07), transparent);
+  background-attachment: fixed;
 }
 
 /*
@@ -27,26 +46,13 @@ body {
  * l'application) et encre recessive. Les couleurs de séries ne servent qu'aux marques (traits, zones), jamais au texte.
  */
 :root {
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --chart-surface: #ffffff;
-  --chart-ink: #0b0b0b;
-  --chart-ink-2: #52514e;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --chart-surface: #161615;
+  --chart-ink: #ffffff;
+  --chart-ink-2: #c3c2b7;
   --chart-muted: #898781;
-  --chart-grid: #e1e0d9;
-  --chart-axis: #c3c2b7;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --chart-surface: #0f172a;
-    --chart-ink: #ffffff;
-    --chart-ink-2: #c3c2b7;
-    --chart-grid: #2c2c2a;
-    --chart-axis: #383835;
-  }
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
 }
