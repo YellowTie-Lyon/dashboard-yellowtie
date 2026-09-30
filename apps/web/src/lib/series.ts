@@ -1,5 +1,7 @@
 import type { SeriesPoint, SeriesRange } from './types'
 
+export type AxisFormat = 'time' | 'date'
+
 export interface RangeSpec {
   key: SeriesRange
   label: string
@@ -10,6 +12,8 @@ export interface RangeSpec {
   bucketed: boolean
   resolution: string
   tickMs: number
+  /** Repères de l'axe : heures (« 14:00 ») ou dates (« 28/09 »). */
+  axis: AxisFormat
 }
 
 const MIN = 60_000
@@ -17,11 +21,11 @@ const HOUR = 60 * MIN
 const DAY = 24 * HOUR
 
 export const RANGES: RangeSpec[] = [
-  { key: '1h', label: '1 h', durationMs: HOUR, stepMs: MIN, bucketed: false, resolution: '1 point par minute', tickMs: 10 * MIN },
-  { key: '6h', label: '6 h', durationMs: 6 * HOUR, stepMs: MIN, bucketed: false, resolution: '1 point par minute', tickMs: HOUR },
-  { key: '24h', label: '24 h', durationMs: DAY, stepMs: 5 * MIN, bucketed: true, resolution: 'tranches de 5 min', tickMs: 4 * HOUR },
-  { key: '7d', label: '7 j', durationMs: 7 * DAY, stepMs: 15 * MIN, bucketed: true, resolution: 'tranches de 15 min', tickMs: DAY },
-  { key: '30d', label: '30 j', durationMs: 30 * DAY, stepMs: HOUR, bucketed: true, resolution: 'tranches d’1 h', tickMs: 5 * DAY },
+  { key: '1h', label: '1 h', durationMs: HOUR, stepMs: MIN, bucketed: false, resolution: '1 point par minute', tickMs: 10 * MIN, axis: 'time' },
+  { key: '6h', label: '6 h', durationMs: 6 * HOUR, stepMs: MIN, bucketed: false, resolution: '1 point par minute', tickMs: HOUR, axis: 'time' },
+  { key: '24h', label: '24 h', durationMs: DAY, stepMs: 5 * MIN, bucketed: true, resolution: 'tranches de 5 min', tickMs: 4 * HOUR, axis: 'time' },
+  { key: '7d', label: '7 j', durationMs: 7 * DAY, stepMs: 15 * MIN, bucketed: true, resolution: 'tranches de 15 min', tickMs: DAY, axis: 'date' },
+  { key: '30d', label: '30 j', durationMs: 30 * DAY, stepMs: HOUR, bucketed: true, resolution: 'tranches d’1 h', tickMs: 5 * DAY, axis: 'date' },
 ]
 
 export function rangeSpec(key: SeriesRange): RangeSpec {
@@ -55,8 +59,7 @@ const EMPTY: Omit<SeriesRow, 't'> = {
  * Transforme les points du serveur en lignes de graphique. Une interruption (agent silencieux, serveur injoignable)
  * est matérialisée par une ligne vide : le trait est coupé, on ne relie jamais deux points séparés par un trou.
  */
-export function buildRows(points: SeriesPoint[], range: SeriesRange): SeriesRow[] {
-  const { stepMs } = rangeSpec(range)
+export function buildRows(points: SeriesPoint[], stepMs: number): SeriesRow[] {
   const rows: SeriesRow[] = []
   for (const p of points) {
     const t = new Date(p.ts).getTime()
@@ -87,8 +90,8 @@ const hm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit'
 const dm = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' })
 const full = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
-export function formatTick(t: number, range: SeriesRange): string {
-  return range === '7d' || range === '30d' ? dm.format(t) : hm.format(t)
+export function formatTick(t: number, axis: AxisFormat): string {
+  return axis === 'date' ? dm.format(t) : hm.format(t)
 }
 
 export function formatMoment(t: number): string {
@@ -102,4 +105,28 @@ export function lastValue(rows: SeriesRow[], key: keyof SeriesRow): number | nul
     if (typeof v === 'number') return v
   }
   return null
+}
+
+const NICE_TICKS = [5 * MIN, 10 * MIN, 15 * MIN, 30 * MIN, HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY, 5 * DAY, 10 * DAY]
+
+/**
+ * Description d'une fenêtre libre (période d'un incident). Miroir de get_series_window : au plus ~700 points,
+ * relevés d'1 minute sur une fenêtre courte, tranches regroupées au-delà, agrégats horaires avant 34 jours.
+ */
+export function windowSpec(fromMs: number, toMs: number, nowMs: number = Date.now()): RangeSpec {
+  const durationMs = Math.max(MIN, toMs - fromMs)
+  const old = fromMs < nowMs - 34 * DAY
+  const stepMin = old ? 60 : Math.max(1, Math.ceil(durationMs / MIN / 700))
+  const stepMs = stepMin * MIN
+  const tickMs = NICE_TICKS.find((t) => durationMs / t <= 7) ?? 10 * DAY
+  return {
+    key: '24h',
+    label: 'fenêtre',
+    durationMs,
+    stepMs,
+    bucketed: stepMin > 1,
+    resolution: stepMin === 1 ? '1 point par minute' : stepMin >= 60 && stepMin % 60 === 0 ? `tranches de ${stepMin / 60} h` : `tranches de ${stepMin} min`,
+    tickMs,
+    axis: durationMs > 2 * DAY ? 'date' : 'time',
+  }
 }

@@ -13,6 +13,8 @@ vi.mock('./api', () => ({
   fetchJobStates: () => fetchJobStates(),
 }))
 
+vi.mock('../incidents/api', () => ({ fetchIncidentsInWindow: () => Promise.resolve([]) }))
+
 const cloud: CloudServer = {
   id: 'c1', workspace_id: 'w1', name: 'Cloud 1', slug: 'cloud-1', provider: 'infomaniak', cpu_cores: 12, hostname: null,
   offline_after_seconds: 240, maintenance: false, notes: null, created_at: '2026-09-30T08:00:00Z', updated_at: '2026-09-30T08:00:00Z',

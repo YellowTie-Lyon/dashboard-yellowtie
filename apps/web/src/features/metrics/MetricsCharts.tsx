@@ -4,31 +4,13 @@ import { ErrorNote } from '../../components/ErrorNote'
 import { card, mutedText } from '../../components/ui'
 import { formatLoad, formatPercent, formatRelativeTime } from '../../lib/format'
 import { LIVE } from '../../lib/live'
-import { buildRows, formatMoment, lastValue, RANGES, rangeSpec } from '../../lib/series'
+import { bandFor } from '../../lib/incidents'
+import { buildRows, formatMoment, RANGES, rangeSpec } from '../../lib/series'
 import type { CloudServer, SeriesRange } from '../../lib/types'
 import { useNow } from '../../lib/useNow'
+import { fetchIncidentsInWindow } from '../incidents/api'
 import { fetchJobStates, fetchSeries } from './api'
-import { SeriesChart, type SeriesDef } from './SeriesChart'
-
-const S1 = 'var(--series-1)'
-const S2 = 'var(--series-2)'
-const S3 = 'var(--series-3)'
-
-const LOAD: SeriesDef[] = [
-  { key: 'load1', peakKey: 'load1Max', label: 'Load 1 min', color: S1 },
-  { key: 'load5', label: 'Load 5 min', color: S2 },
-  { key: 'load15', label: 'Load 15 min', color: S3 },
-]
-const CPU: SeriesDef[] = [{ key: 'cpu', peakKey: 'cpuMax', label: 'CPU', color: S1 }]
-const MEM: SeriesDef[] = [
-  { key: 'mem', peakKey: 'memMax', label: 'RAM', color: S1 },
-  { key: 'swap', label: 'Swap', color: S2 },
-]
-const DISK: SeriesDef[] = [{ key: 'disk', label: 'Disque', color: S1 }]
-
-const axisNumber = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
-const pct = (v: number) => formatPercent(v)
-const axisPct = (v: number) => `${axisNumber.format(v)} %`
+import { ChartGrid } from './ChartGrid'
 
 /**
  * Graphiques historiques d'un Server Cloud. Un seul filtre de période, au-dessus, pilote les quatre courbes.
@@ -50,7 +32,13 @@ export function MetricsCharts({ cloud }: { cloud: CloudServer }) {
 
   const to = series.dataUpdatedAt || now
   const from = to - spec.durationMs
-  const rows = useMemo(() => buildRows(series.data ?? [], range), [series.data, range])
+  const rows = useMemo(() => buildRows(series.data ?? [], spec.stepMs), [series.data, spec.stepMs])
+  const incidents = useQuery({
+    queryKey: ['incident-bands', cloud.id, range],
+    queryFn: () => fetchIncidentsInWindow(cloud.id, new Date(from).toISOString()),
+    refetchInterval: LIVE.slow,
+  })
+  const bands = (incidents.data ?? []).map((i) => bandFor(i, to))
   const empty = series.isSuccess && (series.data?.length ?? 0) === 0
   const reloading = series.isFetching && series.isPlaceholderData
 
@@ -58,7 +46,6 @@ export function MetricsCharts({ cloud }: { cloud: CloudServer }) {
   const rollupStale = jobs.isSuccess && (!rollup || now - new Date(rollup.last_run_at).getTime() > 20 * 60_000)
 
   const cores = cloud.cpu_cores
-  const load1 = lastValue(rows, 'load1')
 
   return (
     <section className="space-y-4" aria-label="Graphiques historiques">
@@ -95,65 +82,7 @@ export function MetricsCharts({ cloud }: { cloud: CloudServer }) {
 
       {series.data && !empty && (
         <div className={`grid gap-4 transition-opacity lg:grid-cols-2 ${reloading ? 'opacity-60' : ''}`}>
-          <SeriesChart
-            title="Load average"
-            subtitle={`${spec.resolution}${cores ? ` · ${cores} vCPU (une charge de ${cores} = saturation)` : ''}`}
-            series={LOAD}
-            rows={rows}
-            range={spec}
-            from={from}
-            to={to}
-            domain={[0, 'auto']}
-            formatValue={formatLoad}
-            formatAxis={(v) => axisNumber.format(v)}
-            headline={<>{formatLoad(load1)}</>}
-          />
-          <SeriesChart
-            title="CPU"
-            subtitle={spec.resolution}
-            series={CPU}
-            rows={rows}
-            range={spec}
-            from={from}
-            to={to}
-            domain={[0, 100]}
-            formatValue={pct}
-            formatAxis={axisPct}
-            headline={formatPercent(lastValue(rows, 'cpu'))}
-          />
-          <SeriesChart
-            title="Mémoire"
-            subtitle={spec.resolution}
-            series={MEM}
-            rows={rows}
-            range={spec}
-            from={from}
-            to={to}
-            domain={[0, 100]}
-            formatValue={pct}
-            formatAxis={axisPct}
-            headline={
-              <>
-                {formatPercent(lastValue(rows, 'mem'))}
-                <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
-                  swap {formatPercent(lastValue(rows, 'swap'))}
-                </span>
-              </>
-            }
-          />
-          <SeriesChart
-            title="Disque"
-            subtitle={spec.resolution}
-            series={DISK}
-            rows={rows}
-            range={spec}
-            from={from}
-            to={to}
-            domain={[(min) => Math.max(0, Math.floor(min) - 1), (max) => Math.min(100, Math.ceil(max) + 1)]}
-            formatValue={pct}
-            formatAxis={axisPct}
-            headline={formatPercent(lastValue(rows, 'disk'))}
-          />
+          <ChartGrid rows={rows} spec={spec} from={from} to={to} cores={cores} bands={bands} />
         </div>
       )}
 

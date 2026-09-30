@@ -1,5 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { ErrorNote } from '../components/ErrorNote'
+import { btnPrimary } from '../components/ui'
+import { fetchCloseMinutes, updateCloseMinutes } from '../features/incidents/api'
+import { useWorkspace } from '../features/workspace/useWorkspace'
 import { card, input, mutedText } from '../components/ui'
 import { AlertRulesEditor } from '../features/alerts/AlertRulesEditor'
 import { fetchClouds } from '../features/inventory/api'
@@ -50,6 +54,8 @@ export function SettingsPage() {
         <AlertRulesEditor cloudId={null} calibrationCloudId={calibrationId} />
       </div>
 
+      <CloseDelayCard />
+
       <div className={card}>
         <h2 className="font-semibold">Sondes et notifications</h2>
         <ul className={`mt-2 list-disc space-y-1 pl-5 ${mutedText}`}>
@@ -74,5 +80,51 @@ export function SettingsPage() {
         </ul>
       </div>
     </section>
+  )
+}
+
+function CloseDelayCard() {
+  const queryClient = useQueryClient()
+  const { workspace, canWrite } = useWorkspace()
+  const current = useQuery({ queryKey: ['settings', 'incident_close_minutes'], queryFn: fetchCloseMinutes })
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? String(current.data ?? 5)
+  const minutes = Number(value)
+  const valid = Number.isFinite(minutes) && minutes >= 1 && minutes <= 1440
+  const save = useMutation({
+    mutationFn: () => updateCloseMinutes(workspace!.id, minutes),
+    onSuccess: async () => {
+      setDraft(null)
+      await queryClient.invalidateQueries({ queryKey: ['settings', 'incident_close_minutes'] })
+    },
+  })
+  return (
+    <div className={card}>
+      <h2 className="font-semibold">Clôture des incidents</h2>
+      <p className={`max-w-3xl ${mutedText}`}>
+        Un incident passe en « retour à la normale » dès que les valeurs repassent sous les seuils. Il est clos après ce délai de
+        stabilité ; s'il rechute avant, c'est le même incident qui reprend.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="text-sm font-medium">
+          Délai de stabilité (minutes)
+          <input
+            type="number"
+            min={1}
+            max={1440}
+            value={value}
+            disabled={!canWrite}
+            onChange={(e) => setDraft(e.target.value)}
+            className={`${input} mt-1 w-32`}
+          />
+        </label>
+        {canWrite && (
+          <button type="button" className={btnPrimary} disabled={!valid || draft === null || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        )}
+      </div>
+      <ErrorNote error={current.error ?? save.error} />
+    </div>
   )
 }

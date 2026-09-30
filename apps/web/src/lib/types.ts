@@ -187,3 +187,39 @@ export interface ProbeResult {
   latency_ms: number | null
   error: string | null
 }
+
+export type IncidentKind = 'performance' | 'disk' | 'offline' | 'agent'
+export type IncidentStatus = 'warning' | 'critical' | 'recovery' | 'closed'
+
+export interface Incident {
+  id: string
+  workspace_id: string
+  cloud_server_id: string
+  web_hosting_id: string | null
+  kind: IncidentKind
+  status: IncidentStatus
+  severity_max: 'warning' | 'critical'
+  started_at: string
+  ended_at: string | null
+  recovery_since: string | null
+  reasons: Array<Partial<StatusReason> & { kind?: 'silent' | 'metrics_stale'; last_seen?: string }>
+  peak: Partial<Record<Metric, number>>
+  start_snapshot: Partial<MetricsPoint> | null
+  diagnosis: 'agents_silent' | 'unreachable_probable' | 'unknown_cause' | null
+  note: string | null
+}
+
+export interface IncidentWithNames extends Incident {
+  cloud_servers: { name: string } | null
+  web_hostings: { name: string } | null
+}
+
+export type IncidentEventType = 'opened' | 'escalated' | 'deescalated' | 'recovery_started' | 'relapse' | 'closed'
+
+export interface IncidentEvent {
+  id: number
+  incident_id: string
+  ts: string
+  type: IncidentEventType
+  data: { level?: 'warning' | 'critical'; from?: string; to?: string; duration_seconds?: number }
+}

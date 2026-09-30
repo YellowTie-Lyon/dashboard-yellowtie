@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { card, mutedText } from '../../components/ui'
 import { formatMoment, formatTick, timeTicks, type RangeSpec, type SeriesRow } from '../../lib/series'
 
@@ -10,6 +10,13 @@ export interface SeriesDef {
   label: string
   /** Variable CSS de couleur de série (voir index.css). Ne sert qu'aux marques, jamais au texte. */
   color: string
+}
+
+/** Période d'incident tracée en zone colorée derrière les courbes. */
+export interface IncidentBand {
+  from: number
+  to: number
+  level: 'warning' | 'critical'
 }
 
 interface SeriesChartProps {
@@ -26,13 +33,15 @@ interface SeriesChartProps {
   formatAxis: (v: number) => string
   /** Valeur « actuelle » affichée en en-tête, ex. « 32 % ». */
   headline: ReactNode
+  /** Incidents à matérialiser sur la période (facultatif). */
+  bands?: IncidentBand[]
 }
 
 /**
  * Courbe de série temporelle : lignes de 2 px, zone de pic à 10 %, grille en filet, repère au survol qui affiche toutes
  * les séries à l'instant visé. Les interruptions de collecte coupent le trait (aucun point relié à travers un trou).
  */
-export function SeriesChart({ title, subtitle, series, rows, range, from, to, domain, formatValue, formatAxis, headline }: SeriesChartProps) {
+export function SeriesChart({ title, subtitle, series, rows, range, from, to, domain, formatValue, formatAxis, headline, bands = [] }: SeriesChartProps) {
   const showPeak = range.bucketed
   const peaks = showPeak ? series.filter((s): s is SeriesDef & { peakKey: keyof SeriesRow } => s.peakKey !== undefined) : []
   const ticks = timeTicks(from, to, range.tickMs)
@@ -47,7 +56,7 @@ export function SeriesChart({ title, subtitle, series, rows, range, from, to, do
         <p className="shrink-0 text-right text-xl font-semibold leading-tight">{headline}</p>
       </figcaption>
 
-      {series.length >= 2 || peaks.length > 0 ? (
+      {series.length >= 2 || peaks.length > 0 || bands.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
           {series.map((s) => (
             <li key={s.label} className="flex items-center gap-1.5">
@@ -55,6 +64,14 @@ export function SeriesChart({ title, subtitle, series, rows, range, from, to, do
               {s.label}
             </li>
           ))}
+          {(['warning', 'critical'] as const)
+            .filter((level) => bands.some((b) => b.level === level))
+            .map((level) => (
+              <li key={level} className="flex items-center gap-1.5">
+                <span aria-hidden className="inline-block h-2.5 w-4 rounded-sm" style={{ background: `var(--color-status-${level})`, opacity: 0.3 }} />
+                Incident {level === 'critical' ? 'Critical' : 'Warning'}
+              </li>
+            ))}
           {peaks.length > 0 && (
             <li className="flex items-center gap-1.5">
               <span aria-hidden className="inline-block h-2.5 w-4 rounded-sm" style={{ background: peaks[0]?.color, opacity: 0.2 }} />
@@ -74,7 +91,7 @@ export function SeriesChart({ title, subtitle, series, rows, range, from, to, do
               scale="time"
               domain={[from, to]}
               ticks={ticks}
-              tickFormatter={(t: number) => formatTick(t, range.key)}
+              tickFormatter={(t: number) => formatTick(t, range.axis)}
               tickLine={false}
               axisLine={{ stroke: 'var(--chart-axis)' }}
               tick={{ fill: 'var(--chart-muted, #898781)', fontSize: 11 }}
@@ -93,6 +110,17 @@ export function SeriesChart({ title, subtitle, series, rows, range, from, to, do
               cursor={{ stroke: 'var(--chart-axis)', strokeWidth: 1 }}
               content={(props) => <ChartTooltip active={props.active} payload={props.payload} series={series} showPeak={showPeak} formatValue={formatValue} />}
             />
+            {bands.map((b, i) => (
+              <ReferenceArea
+                key={`band-${i}`}
+                x1={Math.max(b.from, from)}
+                x2={Math.min(b.to, to)}
+                fill={`var(--color-status-${b.level})`}
+                fillOpacity={0.12}
+                stroke="none"
+                ifOverflow="hidden"
+              />
+            ))}
             {peaks.map((s) => (
               <Area
                 key={`${s.label}-peak`}

@@ -16,6 +16,8 @@ import {
 } from '../features/inventory/api'
 import { CloudFormDialog } from '../features/inventory/CloudFormDialog'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
+import { fetchIncidents } from '../features/incidents/api'
+import { IncidentsList } from '../features/incidents/IncidentsList'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { AlertRulesEditor } from '../features/alerts/AlertRulesEditor'
 import { fetchCloudStatuses, fetchLatestProbes } from '../features/alerts/api'
@@ -36,6 +38,11 @@ export function CloudPage() {
   const { workspace, canWrite } = useWorkspace()
 
   const cloud = useQuery({ queryKey: ['cloud', cloudId], queryFn: () => fetchCloud(cloudId), refetchInterval: LIVE.slow })
+  const incidents = useQuery({
+    queryKey: ['incidents', 'cloud', cloudId],
+    queryFn: () => fetchIncidents({ cloudId, limit: 8 }),
+    refetchInterval: LIVE.fast,
+  })
   const hostings = useQuery({ queryKey: ['hostings', cloudId], queryFn: () => fetchHostings(cloudId), refetchInterval: LIVE.slow })
   const hostingIds = (hostings.data ?? []).map((h) => h.id)
   const hostingStates = useQuery({
@@ -263,9 +270,19 @@ export function CloudPage() {
         </div>
       </details>
 
-      <div className={`${card} border-dashed`}>
-        <h2 className="font-semibold">Incidents et diagnostics de trafic</h2>
-        <p className={mutedText}>Disponibles en phases 6 et 7.</p>
+      <div className={card}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold">Incidents</h2>
+          <Link to="/incidents" className="text-sm underline">
+            Tous les incidents
+          </Link>
+        </div>
+        {(incidents.data ?? []).length === 0 ? (
+          <p className={mutedText}>Aucun incident enregistré pour ce Server Cloud.</p>
+        ) : (
+          <IncidentsList incidents={incidents.data ?? []} now={now} showCloud={false} />
+        )}
+        <p className={`mt-3 text-xs ${mutedText}`}>Le diagnostic de trafic (domaines potentiellement impliqués) arrive en phase 7.</p>
       </div>
 
       {workspace && (

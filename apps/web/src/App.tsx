@@ -7,6 +7,8 @@ import { isSupabaseConfigured } from './lib/supabase'
 import { ConfigErrorPage } from './pages/ConfigErrorPage'
 import { CloudPage } from './pages/CloudPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { IncidentPage } from './pages/IncidentPage'
+import { IncidentsPage } from './pages/IncidentsPage'
 import { HostingPage } from './pages/HostingPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -31,6 +33,8 @@ export default function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="clouds/:cloudId" element={<CloudPage />} />
                 <Route path="hostings/:hostingId" element={<HostingPage />} />
+                <Route path="incidents" element={<IncidentsPage />} />
+                <Route path="incidents/:incidentId" element={<IncidentPage />} />
                 <Route path="reglages" element={<SettingsPage />} />
               </Route>
             </Route>

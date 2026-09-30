@@ -1,9 +1,14 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
+import { fetchOpenIncidentCount } from '../features/incidents/api'
+import { LIVE } from '../lib/live'
 import { LiveIndicator } from './LiveIndicator'
 
 export function AppShell() {
   const { user, signOut } = useAuth()
+  const open = useQuery({ queryKey: ['incidents', 'open-count'], queryFn: fetchOpenIncidentCount, refetchInterval: LIVE.fast })
+  const openCount = open.data ?? 0
 
   return (
     <div className="min-h-screen">
@@ -19,7 +24,18 @@ export function AppShell() {
             <Link to="/" className="font-semibold tracking-tight">
               YellowScope
             </Link>
-            <Link to="/reglages" className="ml-4 text-sm text-slate-500 hover:underline dark:text-slate-400">
+            <Link to="/incidents" className="ml-4 flex items-center gap-1.5 text-sm text-slate-500 hover:underline dark:text-slate-400">
+              Incidents
+              {openCount > 0 && (
+                <span
+                  aria-label={`${openCount} incident(s) en cours`}
+                  className="rounded-full bg-red-600 px-1.5 text-xs font-semibold text-white"
+                >
+                  {openCount}
+                </span>
+              )}
+            </Link>
+            <Link to="/reglages" className="ml-2 text-sm text-slate-500 hover:underline dark:text-slate-400">
               Réglages
             </Link>
           </div>

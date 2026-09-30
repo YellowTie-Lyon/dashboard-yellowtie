@@ -359,6 +359,17 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 (Warning → Critical), `diagnostic` (« 3/3 hébergements analysés » ou « 2/3, 1 agent n'a pas répondu »),
 `recovered`. Pas de message par hébergement. Formatage en Europe/Paris.
 
+**Incidents (phase 6)** : `evaluate_cloud` appelle `sync_incident` à chaque évaluation. Quatre types : `performance`
+(load, CPU, RAM et swap regroupés en un seul incident), `disque`, `offline` (Cloud) et `agent` (un par hébergement : agent
+silencieux alors que le Cloud répond, ou collecteur muet). Un seul incident ouvert par (Cloud, type, hébergement) : index
+unique partiel. Cycle : `warning` ⇄ `critical` (montée/descente tracées) → `recovery` dès que le niveau repasse à normal →
+`closed` après `incident_close_minutes` (Réglages, 5 min par défaut) de stabilité ; une rechute pendant `recovery` rouvre le
+**même** incident. La fin d'un incident est le **début** du retour stable, pas l'instant de clôture. Chaque changement est un
+événement de `incident_events` (chronologie) ; les pics par métrique et un instantané des valeurs au début sont conservés. La
+maintenance gèle les incidents. Le client ne peut modifier que la `note` (colonne, propriétaire). `get_series_window` fournit les
+courbes d'une période arbitraire (≤ 700 points ; agrégats horaires au-delà de 34 jours). Les incidents décrivent l'état observé,
+sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
+
 ## 12. Plan de développement
 
 | Phase | Contenu | État |
@@ -368,8 +379,8 @@ Quatre messages au maximum par incident : `opened` (« Diagnostic en cours… »
 | 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | Fait |
 | 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, découverte des sites, mode observation | Fait |
 | 4 | Graphiques et données : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | Fait |
-| **5** | **Seuils, statuts, silences, sondes** (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | **En cours de validation** |
-| 6 | Incidents et historique (notifications externes abandonnées à la demande) | À faire |
+| 5 | Seuils, statuts, silences, sondes (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | Fait |
+| **6** | **Incidents et historique** (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | **En cours de validation** |
 | 7 | Diagnostic de trafic (`analyze_logs`), découverte de sites, UI de comparaison | À faire |
 | 8 | Durcissement, runbook, production | À faire |
 

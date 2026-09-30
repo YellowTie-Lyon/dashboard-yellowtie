@@ -168,3 +168,17 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
   (même 404) prouve que le serveur web répond. La page Réglages indique le dernier passage des sondes ; elle signale aussi si
   l'extension **pg_net** doit être activée (Supabase > Database > Extensions).
 - **Aucune notification** n'est envoyée : les statuts se consultent dans YellowScope (mise à jour automatique).
+
+## Phase 6 : incidents et historique
+
+- **Menu Incidents** : la liste de tous les incidents (filtres : état, type, Server Cloud). Un badge rouge indique le nombre
+  d'incidents en cours. Chaque Cloud affiche aussi ses derniers incidents.
+- **Ouverture automatique** : dès qu'un Cloud passe en Warning/Critical, ou qu'il / son agent cesse d'envoyer des données, un
+  incident s'ouvre tout seul ; il se clôt seul quand tout est redevenu normal depuis quelques minutes.
+- **Page d'un incident** : résumé (début, fin, durée, gravité maximale), raisons, valeurs maximales, chronologie, courbes de la
+  période (zone colorée = incident) et une **note** libre pour garder l'explication (par exemple « plugin désactivé »).
+- **Réglages > Clôture des incidents** : délai de stabilité avant clôture (5 min par défaut). Si la situation se dégrade de
+  nouveau avant la clôture, c'est le même incident qui reprend.
+- Les courbes de la page d'un Cloud montrent aussi les incidents en bandes colorées.
+- **Mise en ligne** : la migration `…0008_incidents.sql` est appliquée automatiquement par GitHub Actions après « push main ».
+- Aucune notification externe : tout se consulte dans YellowScope.
