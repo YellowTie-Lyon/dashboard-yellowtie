@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Dialog } from '../components/Dialog'
 import { ErrorNote } from '../components/ErrorNote'
 import { TokenRevealDialog } from '../components/TokenRevealDialog'
+import { UpdateAgentDialog } from '../components/UpdateAgentDialog'
 import { btn, btnDanger, btnPrimary, card, input, mutedText } from '../components/ui'
 import {
   deleteHosting,
@@ -60,6 +61,7 @@ export function HostingPage() {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [rotateOpen, setRotateOpen] = useState(false)
+  const [updateOpen, setUpdateOpen] = useState(false)
   const [revokeOpen, setRevokeOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
@@ -254,6 +256,9 @@ export function HostingPage() {
             <div className="flex gap-2">
               {h.token_active ? (
                 <>
+                  <button type="button" className={btnPrimary} onClick={() => setUpdateOpen(true)}>
+                    Mettre à jour l'agent
+                  </button>
                   <button type="button" className={btn} onClick={() => setRotateOpen(true)}>
                     Régénérer
                   </button>
@@ -364,6 +369,7 @@ export function HostingPage() {
       </div>
 
       <HostingFormDialog open={editing} onClose={() => setEditing(false)} hosting={h} />
+      <UpdateAgentDialog open={updateOpen} hostingName={h.name} onClose={() => setUpdateOpen(false)} />
       <TokenRevealDialog token={revealedToken} hostingName={h.name} onClose={() => setRevealedToken(null)} />
       <RotateDialog
         open={rotateOpen}

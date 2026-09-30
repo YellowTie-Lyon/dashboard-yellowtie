@@ -132,7 +132,7 @@ servent à les comparer avec la console Infomaniak avant de fixer les seuils.
 
 ### Mettre à jour un agent déjà installé
 
-Relancez simplement les deux lignes de la commande d'installation (page de l'hébergement > « Régénérer » n'est
+Sur la page de l'hébergement, bouton **« Mettre à jour l'agent »** (carte « Token d'agent ») : il affiche la commande à copier. Ou relancez simplement les deux lignes de la commande d'installation (« Régénérer » n'est
 **pas** nécessaire) : l'installeur télécharge la dernière version, vérifie sa somme de contrôle et remplace
 l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actuel.
 

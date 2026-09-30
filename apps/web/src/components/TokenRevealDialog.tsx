@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { agentInstallCommand } from '../lib/agentCommand'
 import { Dialog } from './Dialog'
 import { btn, btnPrimary, input } from './ui'
 
@@ -13,14 +14,7 @@ interface TokenRevealDialogProps {
 export function TokenRevealDialog({ token, hostingName, onClose }: TokenRevealDialogProps) {
   const [copied, setCopied] = useState<'token' | 'command' | null>(null)
 
-  // Commande d'installation : le token n'y figure PAS (il est demandé en saisie masquée sur le serveur).
-  const siteUrl = window.location.origin
-  const apiUrl = import.meta.env.VITE_SUPABASE_URL ?? 'https://<projet>.supabase.co'
-  const apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '<clé publique>'
-  const command = [
-    `curl -fsSL ${siteUrl}/agent/install.sh -o ik-install.sh`,
-    `bash ik-install.sh --base-url ${siteUrl} --api-url ${apiUrl} --api-key ${apiKey}`,
-  ].join('\n')
+  const command = agentInstallCommand()
 
   async function copy(kind: 'token' | 'command') {
     try {
