@@ -246,7 +246,12 @@ export interface HostingTraffic {
   last_at: string | null
   domains: { domain: string; requests: number; bytes: number; r4xx: number; r5xx: number; posts: number; bots: number }[]
   series: { ts: number; n: number; e4: number; e5: number }[]
-  paths: { domain: string; path: string; requests: number; errors: number }[]
+  paths: { domain: string; path: string; requests: number; errors: number; posts?: number }[]
+  /** Agent 0.4.0 : motifs de paramètres (noms seulement), user-agents, IP par domaine, détail par domaine. Absents des agents plus anciens. */
+  queries?: { domain: string; query: string; requests: number; errors: number }[]
+  uas?: { ua: string; requests: number }[]
+  ipdomains?: { ip: string; domain: string; requests: number }[]
+  domdetail?: { domain: string; distinct_paths: number; not_found: number; denied: number }[]
   ips: { ip: string; requests: number }[]
   agents: { googlebot: number; bots: number; browsers: number; empty: number }
 }
@@ -257,7 +262,13 @@ export interface IncidentTraffic {
   requests: number
   hostings: { hosting_id: string; name: string; requests: number; share: number }[]
   domains: { domain: string; hosting_id: string; hosting: string; requests: number; r5xx: number; share: number }[]
-  paths: { domain: string; path: string; requests: number }[]
+  paths: { domain: string; path: string; requests: number; errors?: number; posts?: number }[]
+  totals?: { r4xx: number; r5xx: number; posts: number; bots: number }
+  queries?: { domain: string; query: string; requests: number; errors: number }[]
+  uas?: { ua: string; requests: number }[]
+  ips?: { ip: string; requests: number }[]
+  ipdomains?: { ip: string; domain: string; requests: number }[]
+  domdetail?: { domain: string; distinct_paths: number; not_found: number; denied: number }[]
 }
 
 // --- Utilisateurs ------------------------------------------------------------------------------------------------
