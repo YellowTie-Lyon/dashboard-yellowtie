@@ -10,10 +10,11 @@ const fetchClouds = vi.fn<() => Promise<CloudWithCounts[]>>()
 const fetchCloudStates = vi.fn<() => Promise<CloudState[]>>()
 const fetchCloudStatuses = vi.fn<() => Promise<CloudStatusRow[]>>()
 let canWrite = true
+let hostingStates: import('../lib/types').HostingState[] = []
 
 vi.mock('../features/inventory/api', async () => {
   const actual = await vi.importActual<typeof import('../features/inventory/api')>('../features/inventory/api')
-  return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates(), fetchHostingStates: () => Promise.resolve([]) }
+  return { ...actual, fetchClouds: () => fetchClouds(), fetchCloudStates: () => fetchCloudStates(), fetchHostingStates: () => Promise.resolve(hostingStates) }
 })
 vi.mock('../features/alerts/api', async () => {
   const actual = await vi.importActual<typeof import('../features/alerts/api')>('../features/alerts/api')
@@ -75,6 +76,7 @@ function renderPage() {
 describe('DashboardPage', () => {
   beforeEach(() => {
     canWrite = true
+    hostingStates = []
     fetchClouds.mockReset()
     fetchCloudStates.mockReset()
     fetchCloudStates.mockResolvedValue([])
@@ -243,5 +245,19 @@ describe('DashboardPage', () => {
     expect(await screen.findByText(/Hébergements · les 15 dernières minutes/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '1 h' }))
     expect(await screen.findByText(/Hébergements · la dernière heure/)).toBeInTheDocument()
+  })
+
+  it("affiche la version de l'agent à côté du nom de l'hébergement, en orange si elle est ancienne", async () => {
+    const base = { last_seen_at: new Date().toISOString(), hostname_seen: null, backlog: 0, last_error: null, log_size_bytes: null, log_inode: null, anomaly: null }
+    hostingStates = [
+      { ...base, web_hosting_id: 'h1', agent_version: '0.3.1' },
+      { ...base, web_hosting_id: 'h2', agent_version: '0.2.0' },
+    ]
+    fetchClouds.mockResolvedValue([
+      cloud({ web_hostings: [{ id: 'h1', name: 'Hébergement 1', sites: [{ count: 1 }] }, { id: 'h2', name: 'Hébergement 2', sites: [{ count: 1 }] }] }),
+    ])
+    renderPage()
+    expect(await screen.findByText('v0.3.1')).toHaveClass('text-slate-500')
+    expect(screen.getByText('v0.2.0')).toHaveClass('text-orange-400')
   })
 })

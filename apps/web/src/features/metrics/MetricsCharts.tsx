@@ -61,7 +61,7 @@ export function MetricsCharts({ cloud }: { cloud: CloudServer }) {
               className={`px-3 py-1.5 text-sm font-medium ${
                 r.key === range
                   ? 'bg-slate-900 text-white dark:bg-yellow-400 dark:text-slate-900'
-                  : 'bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
+                  : 'bg-transparent hover:bg-white/10'
               }`}
             >
               {r.label}

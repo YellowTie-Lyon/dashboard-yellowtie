@@ -10,7 +10,7 @@ export function IncidentsList({ incidents, now, showCloud = true }: { incidents:
     <ul className="divide-y divide-slate-200 dark:divide-slate-800">
       {incidents.map((i) => (
         <li key={i.id}>
-          <Link to={`/incidents/${i.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <Link to={`/incidents/${i.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 hover:bg-white/5">
             <span className="w-40 shrink-0">
               <IncidentBadge status={i.status} />
             </span>

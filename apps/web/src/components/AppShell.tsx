@@ -41,7 +41,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => void signOut()}
-              className="rounded-md border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="rounded-full border border-white/15 px-4 py-1.5 font-medium transition-colors hover:border-white/30 hover:bg-white/10"
             >
               Déconnexion
             </button>

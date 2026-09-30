@@ -16,6 +16,8 @@ import { MetricTile, type Level } from './MetricTile'
 import { TopDomains } from './TopDomains'
 
 // Par défaut 15 minutes : le classement suit la charge du moment, comme le load (mis à jour chaque minute).
+// Dernière version de l'agent publiée avec le site (agent/ik-agent.sh) : une version plus ancienne est signalée en orange.
+const LATEST_AGENT_VERSION = '0.3.1'
 const WINDOWS = [
   { minutes: 15, label: '15 min' },
   { minutes: 60, label: '1 h' },
@@ -125,12 +127,21 @@ export function CloudPanel({
           {hostings.map((h) => {
             const health = agentHealth(hostingStates.get(h.id)?.last_seen_at, cloud.offline_after_seconds, now)
             const req = h.share?.requests ?? 0
+            const version = hostingStates.get(h.id)?.agent_version
             return (
               <li key={h.id}>
                 <Link to={`/hostings/${h.id}`} className="group block">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 truncate font-semibold group-hover:text-brand">
                       {h.name}
+                      {version && (
+                        <span
+                          className={`ml-2 font-mono text-[11px] font-normal ${version === LATEST_AGENT_VERSION ? 'text-slate-500' : 'text-orange-400'}`}
+                          title={version === LATEST_AGENT_VERSION ? "Version de l'agent" : `Agent à mettre à jour (dernière version : ${LATEST_AGENT_VERSION})`}
+                        >
+                          v{version}
+                        </span>
+                      )}
                       {health !== 'ok' && (
                         <span className={`ml-2 text-xs font-medium ${health === 'delayed' ? 'text-orange-400' : 'text-red-400'}`}>
                           {health === 'delayed' ? 'agent en retard' : health === 'silent' ? 'agent silencieux' : 'agent non installé'}
