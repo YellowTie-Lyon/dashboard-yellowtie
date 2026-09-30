@@ -1,6 +1,6 @@
 -- Tests pgTAP : notifications Slack (règles d'envoi, secret du webhook, file d'attente, tentatives, rappels, droits).
 begin;
-select plan(63);
+select plan(66);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'owner@example.test'),   -- propriétaire
@@ -189,6 +189,18 @@ select unalike((select payload ->> 'text' from public.notification_outbox where 
 select alike((select payload ->> 'text' from public.notification_outbox where summary like '%Toujours en Critical%' limit 1), '<!channel>%', 'test de rappel avec mention');
 select is((select payload -> 'attachments' -> 0 ->> 'color' from public.notification_outbox where summary like '✅%' limit 1), '#22c55e', 'couleurs identiques aux vraies notifications');
 select is((select count(*)::int from public.notification_outbox where kind = 'test' and payload::text like '%/incidents%'), 6, 'les tests d''incident portent le bouton vers les incidents');
+
+-- État réel : les vrais Clouds et leurs vraies valeurs (pas de données inventées).
+delete from public.notification_outbox;
+insert into public.cloud_server_state (cloud_server_id, workspace_id, last_metrics_at, last_received_at, last_point)
+select '00000000-0000-0000-0000-0000000000c1', id, now(), now(), '{"cpu_pct": 41.2, "load1": 3.5, "mem_used_pct": 55, "disk_used_pct": 44.5}'::jsonb from public.workspaces
+on conflict (cloud_server_id) do update set last_point = excluded.last_point;
+set local role authenticated;
+select public.tests_as('00000000-0000-0000-0000-00000000000a');
+select isnt(public.send_test_notification('live'), null, 'le message « état réel » est accepté');
+reset role;
+select alike((select payload::text from public.notification_outbox where kind = 'test' order by id desc limit 1), '%Cloud 1%CPU 41,2 %%Disque 44,5 %%', 'les vraies valeurs du Cloud apparaissent');
+select alike((select payload::text from public.notification_outbox where kind = 'test' order by id desc limit 1), '%gros.example.fr%', 'et ses vrais domaines les plus sollicités');
 
 select * from finish();
 rollback;

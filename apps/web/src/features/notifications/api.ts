@@ -72,7 +72,7 @@ export async function saveNotificationSettings(input: SaveInput): Promise<void> 
   if (error) throw error
 }
 
-export type TestType = 'basic' | 'critical' | 'warning' | 'reminder' | 'recovery' | 'offline' | 'agent'
+export type TestType = 'basic' | 'critical' | 'warning' | 'reminder' | 'recovery' | 'offline' | 'agent' | 'live'
 
 export async function sendTestNotification(type: TestType = 'basic'): Promise<void> {
   const { error } = await getSupabase().rpc('send_test_notification', { _type: type })

@@ -15,6 +15,7 @@ const STATUS: Record<NotificationLog['status'], { label: string; cls: string }> 
   failed: { label: 'Échec', cls: 'text-red-400' },
 }
 const TESTS: { type: TestType; label: string; hint: string }[] = [
+  { type: 'live', label: 'État réel actuel', hint: 'Vos vrais Clouds, avec les vraies valeurs du moment (données réelles)' },
   { type: 'basic', label: 'Test simple', hint: 'Vérifie que le canal reçoit les messages' },
   { type: 'critical', label: 'Alerte Critical', hint: 'Cloud en Critical (rouge, avec mention)' },
   { type: 'warning', label: 'Alerte Warning', hint: 'Cloud en Warning (orange)' },
@@ -228,7 +229,7 @@ function NotificationsForm({ settings, loading, loadError, log }: { settings: No
         <div className="mt-5">
           <h3 className={labelMono}>Envoyer un exemple de chaque notification</h3>
           <p className={`mt-1 text-xs ${mutedText}`}>
-            Messages marqués [TEST], avec des données fictives, mais identiques aux vrais (couleurs, mention, bouton). Enregistrez d'abord vos réglages.
+            « État réel actuel » utilise vos vrais Clouds et leurs vraies valeurs. Les autres exemples sont marqués [TEST] avec des données fictives, mais identiques aux vraies alertes (couleurs, mention, bouton) ; les vraies alertes, elles, utilisent toujours les données réelles de l'incident. Enregistrez d'abord vos réglages.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {TESTS.map((t) => (

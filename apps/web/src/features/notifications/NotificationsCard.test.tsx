@@ -114,7 +114,7 @@ describe('NotificationsCard', () => {
     fetchSettings.mockResolvedValue(settings())
     renderIt()
     await screen.findByText('Activées')
-    for (const name of ['Test simple', 'Alerte Critical', 'Alerte Warning', 'Rappel', 'Retour à la normale', 'Cloud hors ligne', 'Agent silencieux']) {
+    for (const name of ['État réel actuel', 'Test simple', 'Alerte Critical', 'Alerte Warning', 'Rappel', 'Retour à la normale', 'Cloud hors ligne', 'Agent silencieux']) {
       expect(screen.getByRole('button', { name })).toBeEnabled()
     }
   })
