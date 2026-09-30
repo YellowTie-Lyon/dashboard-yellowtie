@@ -40,7 +40,7 @@ $$ update public.web_hosting_state set last_seen_at = now() - interval '1 minute
 create function public.tests_as(_uid uuid) returns void language plpgsql as $$
 begin
   perform set_config('request.jwt.claim.sub', _uid::text, true);
-  perform set_config('request.jwt.claims', json_build_object('sub', _uid, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', _uid, 'role', 'authenticated', 'aal', 'aal2')::text, true);
 end $$;
 create table public.tests_res (label text, r jsonb);
 grant all on public.tests_res to anon, authenticated;

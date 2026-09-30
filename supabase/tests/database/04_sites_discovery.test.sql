@@ -107,6 +107,7 @@ select throws_ok($$insert into public.sites (workspace_id, web_hosting_id, domai
   '23514', null, 'une origine inconnue est refusée');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select ok((select count(*) from public.sites where source = 'discovered') > 0, 'le propriétaire voit les sites découverts');
 select lives_ok($$update public.sites set is_active = false where domain = 'blog.exemple.fr'$$,
   'le propriétaire peut désactiver un site découvert');

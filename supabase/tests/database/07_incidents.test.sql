@@ -203,6 +203,7 @@ select throws_ok($$insert into public.settings (workspace_id, key, value) select
 select public.tests_seed(0.5, 20, 30, 40, 300);   -- 301 relevés sur 5 h
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.get_series_window('00000000-0000-0000-0000-0000000000c1', now() - interval '2 hours', now() + interval '1 minute')),
           (select count(*)::int from public.metrics where ts >= now() - interval '2 hours'), 'fenêtre courte : un point par relevé');
 select is((select sum(n)::int from public.get_series_window('00000000-0000-0000-0000-0000000000c1', now() - interval '6 hours', now() + interval '1 minute')),
@@ -218,13 +219,16 @@ values ('00000000-0000-0000-0000-0000000000c1', date_bin(interval '1 hour', now(
         60, 3, 5, 3, 3, 3, 3, 30, 31, 10, 10, 40, 40);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select n from public.get_series_window('00000000-0000-0000-0000-0000000000c1', now() - interval '61 days', now() - interval '59 days')), 60,
           'avant 34 jours : agrégats horaires');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.get_series_window('00000000-0000-0000-0000-0000000000c1', now() - interval '6 hours', now())), 0, 'un étranger ne voit aucun point');
 
 -- ============================ Droits =====================================================================
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.incidents), 2, 'le propriétaire lit les incidents');
 select ok((select count(*) >= 0 from public.incident_events), 'et leur chronologie');
 select lives_ok($$update public.incidents set note = 'Cause : plugin de cache, corrigé' where kind = 'disk' and status = 'warning'$$, 'le propriétaire modifie la note');
@@ -238,6 +242,7 @@ select throws_ok($$select public.sync_incident('00000000-0000-0000-0000-00000000
 select lives_ok($$update public.settings set value = '10'::jsonb where key = 'incident_close_minutes'$$, 'le propriétaire règle le délai de clôture');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.incidents), 2, 'le lecteur lit les incidents');
 select is((select count(*)::int from (select 1 from public.incidents where note is not null) x), 1, 'le lecteur voit la note');
 update public.incidents set note = 'tentative du lecteur';
@@ -246,6 +251,7 @@ update public.settings set value = '99'::jsonb where key = 'incident_close_minut
 select is((select value #>> '{}' from public.settings where key = 'incident_close_minutes'), '10', 'le lecteur ne modifie pas les réglages');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.incidents) + (select count(*)::int from public.incident_events)
         + (select count(*)::int from public.settings), 0, 'un étranger ne voit ni incidents, ni chronologie, ni réglages');
 reset role;

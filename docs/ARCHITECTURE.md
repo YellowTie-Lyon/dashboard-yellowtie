@@ -401,6 +401,7 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 6 | Incidents et historique (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | Fait |
 | 7 | Diagnostic de trafic : agent 0.3.x (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | Fait |
 | 8 | Exploitation : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | Fait |
+| **9** | **Utilisateurs et sécurité d'accès** : gestion des utilisateurs sur le site, double authentification TOTP obligatoire (imposée par la base), non-indexation | **En cours de validation** |
 
 **Exploitation (phase 8)** : `get_storage_stats()` (SECURITY DEFINER, membres seulement) renvoie la taille de la base et des 10
 plus grosses tables ; Réglages affiche le quota (500 Mo en offre Free), l'état des six tâches planifiées (`evaluate`, `rollup`,
@@ -409,6 +410,19 @@ cas de problème (tâche essentielle en retard ou jamais exécutée, stockage �
 panneaux Cloud (mesures 2 × 2 ou 4 × 1 selon la largeur réelle), navigation sur deux lignes en dessous de 1024 px, zones de toucher
 de 2,5 rem sur écran tactile ; **mode TV** (`/tv`) : sans bouton, taille de base proportionnelle à la largeur (14 px → 36 px), écran
 maintenu allumé (Wake Lock), curseur masqué après 5 s. Le mode d'emploi est dans `docs/RUNBOOK.md`.
+
+**Utilisateurs et double authentification (phase 9)** : accès uniquement sur invitation (inscription publique désactivée) et **TOTP
+obligatoire** (Supabase Auth MFA, Google Authenticator ou équivalent). L'exigence est **côté base** : `is_workspace_member` et
+`has_workspace_role` (utilisées par toute la RLS) et les RPC sensibles exigent le claim `aal = 'aal2'` du JWT (`is_aal2()`), donc un mot
+de passe volé sans code ne lit aucune donnée ; l'interface (`RequireAuth`) ne fait que guider (création du facteur à la première
+connexion, saisie du code ensuite ; niveau indéterminé = rien d'ouvert). Les agents ne sont pas concernés (token d'agent, sans JWT).
+Gestion (menu Utilisateurs, propriétaires seulement) : lecture `list_workspace_members()` et `set_member_role()` (SECURITY DEFINER,
+propriétaire + aal2, dernier propriétaire protégé, audit) ; invitation, suppression et réinitialisation du 2FA par la fonction Edge
+`manage-users` (`supabase/functions/manage-users`), seule à utiliser la clé de service, après avoir prouvé « propriétaire + aal2 » en
+appelant `list_workspace_members()` avec le JWT de l'appelant ; validations dans `logic.ts` (testées en CI), actions journalisées
+(`record_user_event`, réservée à `service_role`). Liens d'invitation et de réinitialisation : session ouverte par le lien, puis page
+`/bienvenue` (choix du mot de passe, 12 caractères minimum) puis création du 2FA. Non-indexation : `X-Robots-Tag: noindex, nofollow,
+noarchive, nosnippet, noimageindex` (Netlify), balise `meta robots` et `robots.txt` (`Disallow: /`).
 
 ## 13. Évolutions prévues (non développées au MVP)
 

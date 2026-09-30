@@ -8,7 +8,7 @@ insert into auth.users (id, email) values
 create function public.tests_as(_uid uuid) returns void language plpgsql as $$
 begin
   perform set_config('request.jwt.claim.sub', _uid::text, true);
-  perform set_config('request.jwt.claims', json_build_object('sub', _uid, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', _uid, 'role', 'authenticated', 'aal', 'aal2')::text, true);
 end $$;
 delete from public.workspace_members where user_id = '00000000-0000-0000-0000-00000000000b';
 

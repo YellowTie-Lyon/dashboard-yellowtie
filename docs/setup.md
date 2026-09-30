@@ -212,3 +212,16 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 - **Mode d'emploi** : `docs/RUNBOOK.md` (que faire si un Cloud est offline, si un agent se tait, si le stockage grimpe, etc.).
 - Migration `…0010_storage_stats.sql` : appliquée par GitHub Actions après « push main ».
 
+## Phase 9 : utilisateurs, double authentification (Google Authenticator), non-indexation
+
+**Avant de mettre en ligne (« push main ») — 3 réglages Supabase, sinon vous risquez de ne plus pouvoir vous connecter :**
+1. **Authentication > Sign In / Providers** (ou *Multi-Factor*) : la double authentification **TOTP** doit être **activée** (« Enroll » et « Verify »). C'est le cas par défaut sur les projets récents ; vérifiez.
+2. **Authentication > URL Configuration** : *Site URL* = l'adresse du site (`https://yellowscope.netlify.app`) ; dans *Redirect URLs*, ajoutez `https://yellowscope.netlify.app/bienvenue`.
+3. **Authentication > Sign In / Providers > Email** : laissez **« Allow new users to sign up » désactivé** (invitation seulement). Les e-mails d'invitation utilisent le modèle « Invite user » (personnalisable dans Authentication > Email Templates).
+
+**Ce qui se passe à la mise en ligne**
+- La migration `…0011_users_mfa.sql` (via GitHub Actions) exige un code TOTP validé pour lire les données, puis la fonction Edge `manage-users` est déployée par la même action (elle utilise la clé de service **fournie par Supabase à l'exécution**, jamais stockée dans le dépôt).
+- À votre prochaine ouverture du site : connexion e-mail + mot de passe, puis **création de votre double authentification** (scannez le QR code avec Google Authenticator, saisissez le code). Gardez la clé affichée sous le QR code dans votre gestionnaire de mots de passe pour pouvoir la recréer.
+- Menu **Utilisateurs** : inviter des personnes, changer les rôles, réinitialiser un 2FA, supprimer un compte (voir `docs/RUNBOOK.md`).
+- Le site est **non indexé** : `X-Robots-Tag: noindex…` sur toutes les pages, balise `meta robots` et `robots.txt` (`Disallow: /`). Aucun moteur de recherche respectueux des règles ne l'affichera.
+

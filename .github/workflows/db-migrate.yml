@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/functions/**'
 
 concurrency:
   group: db-migrate
@@ -30,3 +31,5 @@ jobs:
           version: latest
       - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
       - run: supabase db push
+      # Fonction Edge de gestion des utilisateurs (la clé de service est fournie par Supabase à l'exécution, jamais stockée ici).
+      - run: supabase functions deploy manage-users --project-ref "$SUPABASE_PROJECT_REF"

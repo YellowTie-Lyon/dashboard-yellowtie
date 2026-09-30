@@ -29,7 +29,7 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
 select set_config('request.jwt.claims',
-  '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
+  '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 
 select is((select count(*)::int from public.workspaces), 1, 'un membre voit son workspace');
 select is((select count(*)::int from public.workspace_members), 1, 'un membre voit les appartenances de son workspace');
@@ -49,7 +49,7 @@ select throws_ok(
 -- ----- Non membre : ne voit rien --------------------------------------------------------------
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
 select set_config('request.jwt.claims',
-  '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}', true);
+  '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 
 select is((select count(*)::int from public.workspaces), 0, 'un non-membre ne voit aucun workspace');
 select is((select count(*)::int from public.workspace_members), 0, 'un non-membre ne voit aucune appartenance');

@@ -262,6 +262,7 @@ select is((public.purge_old_data(8, 400) ->> 'probes_deleted')::int, 1, 'la purg
 select public.tests_fresh();
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.alert_rules), 8, 'le propriétaire lit les règles de son workspace uniquement');
 select is((select count(*)::int from public.cloud_status), 1, 'le propriétaire lit le statut de ses Clouds');
 select lives_ok($$insert into public.alert_rules (workspace_id, cloud_server_id, metric, warn_threshold, crit_threshold, window_minutes,
@@ -289,12 +290,14 @@ select throws_ok($$select public.evaluate_all()$$, '42501', null, 'evaluate_all 
 select throws_ok($$select public.run_probes()$$, '42501', null, 'run_probes est réservé au planificateur');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.alert_rules), 9, 'le lecteur lit les règles');
 select throws_ok($$insert into public.alert_rules (workspace_id, metric, warn_threshold, crit_threshold, window_minutes, min_breach_ratio,
   recover_margin, recover_minutes) select id, 'load1', 1, 2, 5, 0.8, 0, 5 from public.workspaces where name <> 'Autre'$$, '42501', null, 'le lecteur ne crée pas de règle');
 select is(public.refresh_statuses(), 0, 'le lecteur ne recalcule rien');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.alert_rules) + (select count(*)::int from public.cloud_status)
         + (select count(*)::int from public.probe_results), 0, 'un étranger ne voit ni règles, ni statuts, ni sondes');
 select is((select count(*)::int from public.get_metric_percentiles('00000000-0000-0000-0000-0000000000c1', 7)), 0, 'ni distribution des mesures');
