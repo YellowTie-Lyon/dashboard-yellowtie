@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Dialog } from '../components/Dialog'
 import { ErrorNote } from '../components/ErrorNote'
@@ -20,6 +20,7 @@ import {
   setSystemCollector,
 } from '../features/inventory/api'
 import { fetchLatestProbes } from '../features/alerts/api'
+import { HostingTraffic } from '../features/traffic/HostingTraffic'
 import { HostingFormDialog } from '../features/inventory/HostingFormDialog'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { formatBytes, formatRelativeTime } from '../lib/format'
@@ -30,6 +31,8 @@ import type { ImportSitesResult, Site } from '../lib/types'
 
 export function HostingPage() {
   const { hostingId = '' } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusDomain = searchParams.get('domain')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canWrite } = useWorkspace()
@@ -190,6 +193,12 @@ export function HostingPage() {
       </div>
 
       {/* État de l'agent */}
+      <HostingTraffic
+        hostingId={h.id}
+        focusDomain={focusDomain}
+        onFocus={(domain) => setSearchParams(domain ? { domain } : {}, { replace: true })}
+      />
+
       <div className={card}>
         <h2 className="font-semibold">État de l'agent</h2>
         {!agentState.data && (
@@ -352,11 +361,6 @@ export function HostingPage() {
             ))}
           </ul>
         )}
-      </div>
-
-      <div className={`${card} border-dashed`}>
-        <h2 className="font-semibold">Diagnostics de trafic</h2>
-        <p className={mutedText}>Disponibles en phase 7 (analyse bornée de l'access.log pendant un incident).</p>
       </div>
 
       <HostingFormDialog open={editing} onClose={() => setEditing(false)} hosting={h} />

@@ -1,45 +1,24 @@
-import { Sparkline } from '../../components/Sparkline'
-
 export type Level = 'ok' | 'warning' | 'critical'
 
-const BAR: Record<Level, string> = { ok: 'bg-yellow-400', warning: 'bg-orange-500', critical: 'bg-red-500' }
-const TEXT: Record<Level, string> = { ok: '', warning: 'text-orange-400', critical: 'text-red-400' }
+const BAR: Record<Level, string> = { ok: 'bg-white/35', warning: 'bg-orange-500', critical: 'bg-red-500' }
+const VALUE: Record<Level, string> = { ok: 'text-white', warning: 'text-orange-400', critical: 'text-red-400' }
 const LEVEL_LABEL: Record<Level, string> = { ok: '', warning: 'Warning', critical: 'Critical' }
 
 /**
- * Une mesure d'un Server Cloud : grande valeur, jauge et tendance de la dernière heure.
- * Le niveau (jaune / orange / rouge) vient des seuils configurés, jamais d'une valeur en dur ; il est aussi écrit en toutes lettres.
+ * Une mesure d'un Server Cloud : le libellé, la valeur, une jauge. Rien d'autre.
+ * Tant que tout est normal, la valeur reste blanche et la jauge neutre ; le jaune est réservé à la marque.
+ * Orange / rouge n'apparaissent que si un seuil configuré est franchi (et le niveau est écrit en toutes lettres).
  */
-export function MetricTile({
-  label,
-  value,
-  detail,
-  fill,
-  level,
-  trend,
-  trendMax,
-  stale,
-}: {
-  label: string
-  value: string
-  detail?: string
-  /** Remplissage de la jauge, 0–100. */
-  fill: number | null
-  level: Level
-  trend?: (number | null)[]
-  trendMax?: number
-  stale?: boolean
-}) {
+export function MetricTile({ label, value, fill, level, stale }: { label: string; value: string; fill: number | null; level: Level; stale?: boolean }) {
   return (
-    <div className={`rounded-lg border border-slate-800 bg-slate-950/60 p-3 ${stale ? 'opacity-50' : ''}`}>
+    <div className={`rounded-xl border px-4 py-3 ${level === 'ok' ? 'border-white/10' : level === 'critical' ? 'border-red-500/50 bg-red-500/5' : 'border-orange-500/50 bg-orange-500/5'} ${stale ? 'opacity-50' : ''}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
-        {level !== 'ok' && <span className={`text-xs font-semibold ${TEXT[level]}`}>{LEVEL_LABEL[level]}</span>}
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{label}</span>
+        {level !== 'ok' && <span className={`text-[11px] font-semibold uppercase ${VALUE[level]}`}>{LEVEL_LABEL[level]}</span>}
       </div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${TEXT[level]}`}>{value}</div>
-      {detail && <div className="text-xs text-slate-500">{detail}</div>}
+      <div className={`mt-1 whitespace-nowrap text-2xl font-bold tabular-nums leading-tight sm:text-3xl ${VALUE[level]}`}>{value}</div>
       <div
-        className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"
+        className="mt-2 h-1 overflow-hidden rounded-full bg-white/10"
         role="progressbar"
         aria-label={label}
         aria-valuemin={0}
@@ -48,11 +27,6 @@ export function MetricTile({
       >
         <div className={`h-full rounded-full ${BAR[level]}`} style={{ width: `${Math.max(0, Math.min(100, fill ?? 0))}%` }} />
       </div>
-      {trend && (
-        <div className="mt-2">
-          <Sparkline values={trend} max={trendMax} label={`${label}, dernière heure`} />
-        </div>
-      )}
     </div>
   )
 }

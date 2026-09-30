@@ -5,6 +5,7 @@ import { ErrorNote } from '../components/ErrorNote'
 import { IncidentBadge } from '../components/IncidentBadge'
 import { btnPrimary, card, input, mutedText } from '../components/ui'
 import { fetchCloud } from '../features/inventory/api'
+import { IncidentTraffic } from '../features/traffic/IncidentTraffic'
 import { fetchIncident, fetchIncidentEvents, updateIncidentNote } from '../features/incidents/api'
 import { useWorkspace } from '../features/workspace/useWorkspace'
 import { formatMetric, metricMeta, reasonText } from '../lib/alerts'
@@ -125,11 +126,10 @@ export function IncidentPage() {
             </ul>
           </div>
         )}
-        <p className={`mt-4 text-xs ${mutedText}`}>
-          Ces constats décrivent l'état observé ; ils n'établissent pas de cause. Le diagnostic de trafic (hébergements et domaines
-          potentiellement impliqués) est prévu en phase 7.
-        </p>
+        <p className={`mt-4 text-xs ${mutedText}`}>Ces constats décrivent l'état observé ; ils n'établissent pas de cause.</p>
       </div>
+
+      {(i.kind === 'performance' || i.kind === 'disk') && <IncidentTraffic incidentId={i.id} open={i.status !== 'closed'} />}
 
       <div className={card}>
         <h2 className="font-semibold">Chronologie</h2>

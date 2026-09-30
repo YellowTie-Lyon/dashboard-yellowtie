@@ -20,7 +20,7 @@ export function AppShell() {
             <Link to="/" className="text-lg font-bold tracking-tight">
               Yellow<span className="text-yellow-400">Scope</span>
             </Link>
-            <Link to="/incidents" className="ml-4 flex items-center gap-1.5 text-sm text-slate-500 hover:underline dark:text-slate-400">
+            <Link to="/incidents" className="ml-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-brand dark:text-slate-300">
               Incidents
               {openCount > 0 && (
                 <span
@@ -31,7 +31,7 @@ export function AppShell() {
                 </span>
               )}
             </Link>
-            <Link to="/reglages" className="ml-2 text-sm text-slate-500 hover:underline dark:text-slate-400">
+            <Link to="/reglages" className="ml-2 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-brand dark:text-slate-300">
               Réglages
             </Link>
           </div>

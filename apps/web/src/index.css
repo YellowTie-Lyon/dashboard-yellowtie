@@ -23,7 +23,7 @@
   --color-slate-800: #262624;
   --color-slate-900: #161615;
   --color-slate-950: #0a0a09;
-  --color-brand: #facc15;
+  --color-brand: #ffc629;
 
   --color-status-normal: #22c55e;
   --color-status-warning: #d97706;
@@ -37,7 +37,12 @@
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
-  background-image: radial-gradient(60rem 24rem at 50% -8rem, rgb(250 204 21 / 0.07), transparent);
+  /* Fond de la charte yellowtie.fr : quadrillage très discret et halo jaune en haut de page. */
+  background-image:
+    radial-gradient(70rem 26rem at 50% -10rem, rgb(255 198 41 / 0.10), transparent),
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: auto, 56px 56px, 56px 56px;
   background-attachment: fixed;
 }
 

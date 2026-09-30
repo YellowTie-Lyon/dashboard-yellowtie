@@ -1,23 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { IncidentBadge } from '../../components/IncidentBadge'
+import { Sparkline } from '../../components/Sparkline'
 import { StatusBadge } from '../../components/StatusBadge'
+import { labelMono } from '../../components/ui'
 import { agentHealth, statusSummary } from '../../lib/alerts'
-import { formatLoad, formatMb, formatPercent, formatRelativeTime } from '../../lib/format'
+import { formatLoad, formatPercent, formatRelativeTime } from '../../lib/format'
 import { LIVE } from '../../lib/live'
-import { sitesCount } from '../inventory/api'
-import { fetchSeries } from '../metrics/api'
+import { formatRate, formatShare, hostingShares } from '../../lib/traffic'
 import type { CloudState, CloudStatusRow, CloudWithCounts, HostingState, Incident, Metric } from '../../lib/types'
+import { fetchSeries } from '../metrics/api'
+import { fetchTopDomains } from '../traffic/api'
 import { MetricTile, type Level } from './MetricTile'
 import { TopDomains } from './TopDomains'
 
+const WINDOW_MIN = 60
 const ACCENT: Record<string, string> = {
-  critical: 'border-red-500/60 shadow-[0_0_0_1px_rgb(239_68_68/0.25)]',
+  critical: 'border-red-500/60',
   warning: 'border-orange-500/60',
-  offline: 'border-slate-600',
+  offline: 'border-slate-500/60',
 }
-const AGENT_DOT: Record<string, string> = { ok: 'bg-status-normal', delayed: 'bg-orange-500', silent: 'bg-red-500', never: 'bg-slate-600' }
-const AGENT_TEXT: Record<string, string> = { ok: 'agent actif', delayed: 'agent en retard', silent: 'agent silencieux', never: "agent non installé" }
 
 function levelFor(status: CloudStatusRow | undefined, metrics: Metric[]): Level {
   let level: Level = 'ok'
@@ -29,138 +31,115 @@ function levelFor(status: CloudStatusRow | undefined, metrics: Metric[]): Level 
   return level
 }
 
-/** Vue d'ensemble d'un Server Cloud : statut, 4 mesures, tendance 1 h, hébergements et domaines les plus sollicités. */
+/**
+ * Un Server Cloud en trois zones lisibles d'un coup d'œil :
+ *   1. état + verdict, 2. les quatre mesures (+ tendance CPU), 3. « où regarder » : hébergements puis domaines les plus sollicités.
+ */
 export function CloudPanel({
-  cloud,
-  state,
-  status,
-  hostingNames,
-  hostingStates,
-  openIncidents,
-  now,
+  cloud, state, status, hostingStates, openIncidents, now,
 }: {
   cloud: CloudWithCounts
   state: CloudState | undefined
   status: CloudStatusRow | undefined
-  hostingNames: Map<string, string>
   hostingStates: Map<string, HostingState>
   openIncidents: Incident[]
   now: number
 }) {
-  // Une seule requête de 60 points par Cloud (relevés bruts de l'heure), partagée avec la page du Cloud.
   const series = useQuery({ queryKey: ['series', cloud.id, '1h'], queryFn: () => fetchSeries(cloud.id, '1h'), refetchInterval: LIVE.normal })
-  const pts = series.data ?? []
+  const traffic = useQuery({ queryKey: ['top-domains', cloud.id, WINDOW_MIN], queryFn: () => fetchTopDomains(cloud.id, WINDOW_MIN), refetchInterval: LIVE.slow })
   const p = state?.last_point
   const stale = state ? (now - new Date(state.last_received_at).getTime()) / 1000 > cloud.offline_after_seconds : false
-  const cores = p?.cpu_cores ?? cloud.cpu_cores ?? null
   const overall = status?.status ?? 'unknown'
   const summary = statusSummary(status)
-  const hostings = [...cloud.web_hostings].sort((a, b) => a.name.localeCompare(b.name))
+  const rows = traffic.data ?? []
+  const shares = new Map(hostingShares(rows).map((s) => [s.hostingId, s]))
+  const hostings = [...cloud.web_hostings]
+    .map((h) => ({ ...h, share: shares.get(h.id) }))
+    .sort((a, b) => (b.share?.requests ?? 0) - (a.share?.requests ?? 0) || a.name.localeCompare(b.name))
+  const maxReq = Math.max(1, ...hostings.map((h) => h.share?.requests ?? 0))
 
   return (
-    <article className={`rounded-2xl border bg-slate-900 p-5 ${ACCENT[overall] ?? 'border-slate-800'}`}>
+    <article className={`rounded-2xl border bg-white/[0.03] p-6 ${ACCENT[overall] ?? 'border-white/10'}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold uppercase tracking-tight">
-            <Link to={`/clouds/${cloud.id}`} className="hover:text-yellow-400">
-              {cloud.name}
-            </Link>
+          <h2 className="text-xl font-bold tracking-tight">
+            <Link to={`/clouds/${cloud.id}`} className="hover:text-brand">{cloud.name}</Link>
           </h2>
-          <p className="text-sm text-slate-400">
-            {hostings.length} hébergement{hostings.length > 1 ? 's' : ''} · {sitesCount(cloud.web_hostings)} sites
-            {cores ? ` · ${cores} vCPU` : ''}
+          <p className={`mt-1 ${labelMono} ${stale ? '!text-orange-400' : ''}`}>
+            {state ? `données ${formatRelativeTime(state.last_received_at, now)}${stale ? ' · silence prolongé' : ''}` : 'aucune donnée'}
             {cloud.maintenance ? ' · maintenance' : ''}
           </p>
         </div>
-        <div className="text-right">
-          <StatusBadge status={overall} />
-          <p className={`mt-1 text-xs ${stale ? 'font-medium text-orange-400' : 'text-slate-500'}`}>
-            {state ? `${formatRelativeTime(state.last_received_at, now)}${stale ? ' · silence prolongé' : ''}` : 'aucune donnée'}
-          </p>
-        </div>
+        <StatusBadge status={overall} />
       </header>
 
-      {summary && <p className={`mt-3 text-sm font-medium ${overall === 'critical' ? 'text-red-400' : overall === 'warning' ? 'text-orange-400' : 'text-slate-300'}`}>{summary}</p>}
-
-      {openIncidents.length > 0 && (
-        <ul className="mt-3 space-y-1">
-          {openIncidents.slice(0, 3).map((i) => (
-            <li key={i.id}>
-              <Link to={`/incidents/${i.id}`} className="inline-flex items-center gap-2 text-sm hover:underline">
-                <IncidentBadge status={i.status} />
-                <span className="text-slate-400">incident depuis {formatRelativeTime(i.started_at, now).replace('il y a ', '')}</span>
-              </Link>
-            </li>
+      {(summary || openIncidents.length > 0) && (
+        <div className="mt-4 space-y-1.5">
+          {summary && <p className={`text-base font-semibold ${overall === 'critical' || overall === 'offline' ? 'text-red-300' : overall === 'warning' ? 'text-orange-300' : 'text-slate-300'}`}>{summary}</p>}
+          {openIncidents.slice(0, 2).map((i) => (
+            <Link key={i.id} to={`/incidents/${i.id}`} className="flex items-center gap-2 text-sm hover:underline">
+              <IncidentBadge status={i.status} />
+              <span className="text-slate-400">incident depuis {formatRelativeTime(i.started_at, now).replace('il y a ', '')}</span>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricTile
-          label="Load"
-          value={formatLoad(p?.load1)}
-          detail={p ? `${formatLoad(p.load1_per_core)} par cœur` : undefined}
-          fill={p ? p.load1_per_core * 100 : null}
-          level={levelFor(status, ['load1_per_core', 'load1', 'load5', 'load5_per_core'])}
-          trend={pts.map((x) => x.load1_avg)}
-          stale={stale}
-        />
-        <MetricTile
-          label="CPU"
-          value={formatPercent(p?.cpu_pct)}
-          fill={p?.cpu_pct ?? null}
-          level={levelFor(status, ['cpu_pct'])}
-          trend={pts.map((x) => x.cpu_pct_avg)}
-          trendMax={100}
-          stale={stale}
-        />
-        <MetricTile
-          label="RAM"
-          value={formatPercent(p?.mem_used_pct)}
-          detail={p ? `${formatMb(p.mem_used_mb)} / ${formatMb(p.mem_total_mb)}` : undefined}
-          fill={p?.mem_used_pct ?? null}
-          level={levelFor(status, ['mem_used_pct', 'swap_used_pct'])}
-          trend={pts.map((x) => x.mem_used_pct_avg)}
-          trendMax={100}
-          stale={stale}
-        />
-        <MetricTile
-          label="Disque"
-          value={formatPercent(p?.disk_used_pct)}
-          detail={p ? `${formatMb(p.disk_used_mb)} / ${formatMb(p.disk_total_mb)}` : undefined}
-          fill={p?.disk_used_pct ?? null}
-          level={levelFor(status, ['disk_used_pct'])}
-          stale={stale}
-        />
+      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricTile label="Load" value={formatLoad(p?.load1)} fill={p ? p.load1_per_core * 100 : null} level={levelFor(status, ['load1_per_core', 'load1', 'load5', 'load5_per_core'])} stale={stale} />
+        <MetricTile label="CPU" value={formatPercent(p?.cpu_pct)} fill={p?.cpu_pct ?? null} level={levelFor(status, ['cpu_pct'])} stale={stale} />
+        <MetricTile label="RAM" value={formatPercent(p?.mem_used_pct)} fill={p?.mem_used_pct ?? null} level={levelFor(status, ['mem_used_pct', 'swap_used_pct'])} stale={stale} />
+        <MetricTile label="Disque" value={formatPercent(p?.disk_used_pct)} fill={p?.disk_used_pct ?? null} level={levelFor(status, ['disk_used_pct'])} stale={stale} />
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div>
-          <h3 className="text-xs font-medium uppercase tracking-wider text-slate-400">Hébergements</h3>
-          {hostings.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">Aucun hébergement déclaré.</p>
+      <div className="mt-4">
+        <p className={labelMono}>CPU · dernière heure</p>
+        <div className="mt-1"><Sparkline values={(series.data ?? []).map((x) => x.cpu_pct_avg)} max={100} label="CPU, dernière heure" /></div>
+      </div>
+
+      <section className="mt-6 border-t border-white/10 pt-5" aria-label="Où regarder">
+        <h3 className={labelMono}>1 · Hébergements · dernière heure</h3>
+        <ul className="mt-3 space-y-2.5">
+          {hostings.map((h) => {
+            const health = agentHealth(hostingStates.get(h.id)?.last_seen_at, cloud.offline_after_seconds, now)
+            const req = h.share?.requests ?? 0
+            return (
+              <li key={h.id}>
+                <Link to={`/hostings/${h.id}`} className="group block">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate font-semibold group-hover:text-brand">
+                      {h.name}
+                      {health !== 'ok' && (
+                        <span className={`ml-2 text-xs font-medium ${health === 'delayed' ? 'text-orange-400' : 'text-red-400'}`}>
+                          {health === 'delayed' ? 'agent en retard' : health === 'silent' ? 'agent silencieux' : 'agent non installé'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-sm tabular-nums text-slate-300">
+                      {h.share ? `${formatRate(req, WINDOW_MIN)} · ${formatShare(h.share.share)}` : <span className="text-slate-500">—</span>}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1 rounded-full bg-white/10">
+                    <div className="h-full rounded-full bg-brand" style={{ width: `${(req / maxReq) * 100}%` }} />
+                  </div>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+
+        <h3 className={`mt-6 ${labelMono}`}>2 · Domaines les plus sollicités</h3>
+        <div className="mt-3">
+          {rows.length > 0 ? (
+            <TopDomains rows={rows} minutes={WINDOW_MIN} />
           ) : (
-            <ul className="mt-2 divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-950/60">
-              {hostings.map((h) => {
-                const health = agentHealth(hostingStates.get(h.id)?.last_seen_at, cloud.offline_after_seconds, now)
-                return (
-                  <li key={h.id}>
-                    <Link to={`/hostings/${h.id}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-slate-800/60">
-                      <span className="min-w-0 truncate font-medium">{hostingNames.get(h.id) ?? h.name}</span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
-                        {h.sites[0]?.count ?? 0} sites
-                        <span aria-hidden className={`size-2 rounded-full ${AGENT_DOT[health]}`} />
-                        {AGENT_TEXT[health]}
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
+            <p className="text-sm text-slate-500">
+              {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.3.0 est installé (analyse toutes les 5 minutes)."}
+            </p>
           )}
         </div>
-        <TopDomains rows={null} />
-      </div>
+        <p className="mt-4 text-xs text-slate-500">Nombre de requêtes reçues : un repère, pas une cause. Un domaine très sollicité est « potentiellement impliqué » dans une charge.</p>
+      </section>
     </article>
   )
 }

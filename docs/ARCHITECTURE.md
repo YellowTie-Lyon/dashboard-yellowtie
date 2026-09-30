@@ -162,26 +162,43 @@ calcule les dérivés (`load1_per_core`, `*_used_pct`), met à jour l'état du C
 - Installation : `install.sh` (téléchargement + vérification SHA-256, configuration, cron idempotent, sauvegarde de
   la crontab). Le token est demandé en saisie masquée.
 
-### Actions (`heartbeat` → `analyze_logs` → résultat)
+### Trafic : analyse continue de l'access.log (agent 0.3.0, phase 7)
 
-1. Un incident s'ouvre : une ligne `incident_diagnostics` `pending` est créée pour chaque hébergement du
-   Cloud (paramètres serveur : `window_minutes`, `max_bytes`, `expires_at`).
-2. Au heartbeat suivant (≤ 60 s), la réponse contient l'action. La ligne passe en `delivered` ; sans résultat
-   après 2 min, elle est re-livrée (2 tentatives max).
-3. L'agent n'exécute **qu'une liste blanche d'actions codées localement** (`analyze_logs`), avec des paramètres
-   numériques qu'il borne lui-même (fenêtre ≤ 30 min, ≤ 64 Mo). Jamais de commande arbitraire.
-4. Analyse détachée : `nice -n 19`, `ionice -c3`, `flock`, `timeout` 90 s, `LC_ALL=C`, `tail -c max_bytes`
-   (1ʳᵉ ligne partielle ignorée) puis un seul `mawk`/`awk`, mémoire bornée (au-delà de 50 000 clés
-   distinctes, le reste va dans « autres » avec `cardinality_capped`). `truncated` + `covered_from` si la
-   fenêtre n'est pas entièrement couverte.
-5. Résultat renvoyé par `agent_api.submit_diagnostic(action_id, result)` (≤ 64 Ko) ; en cas d'échec il reste
-   en spool jusqu'à `expires_at`.
-6. Quand tous les hébergements ont répondu, ou à l'échéance (300 s par défaut), le diagnostic est **finalisé** :
-   agrégation inter-hébergements, une seule ligne d'outbox. Un résultat tardif est conservé mais ne
-   déclenche pas de nouveau message.
+Décision révisée : au lieu d'une analyse déclenchée à l'ouverture d'un incident (action reçue de l'API), **chaque agent
+analyse son propre `access.log` toutes les 5 minutes**. Le tableau de bord peut ainsi toujours afficher les domaines les
+plus sollicités, et le trafic de la période d'un incident est déjà là quand l'incident s'ouvre. Aucune commande n'est
+jamais reçue de l'API : la réponse du heartbeat reste inchangée.
 
-Un diagnostic peut aussi être demandé à la main (bouton « Analyser le trafic maintenant »,
-`trigger = 'manual'`, même garde-fou d'intervalle minimum).
+Fonctionnement (bornes de charge) :
+- **Octets nouveaux seulement** : le décalage (`tr_off`) et l'inode (`tr_ino`) du fichier sont mémorisés ; `tail -c +N`
+  saute directement au bon endroit. Première analyse : on part de la fin du fichier (aucun historique relu).
+- **Plafond de lecture** : 4 Mo par analyse (les plus récents ; le reste est marqué `trunc`), ramené à 1 Mo si le load 1 min
+  dépasse 2 × le nombre de cœurs. Une rotation du log (inode différent) relit le nouveau fichier depuis le début.
+- **3 processus courts toutes les 5 minutes** (sous-shell, `tail`, `awk`), la priorité (`nice 19`) héritée du cron.
+  Mesure : 30 000 lignes (4 Mo) en 0,14 s de CPU, soit environ 0,05 % d'un cœur.
+- **Un seul `awk` (POSIX)** agrège et n'émet qu'un JSON borné (< 12 Ko) : jusqu'à 30 domaines (requêtes, octets,
+  2xx/3xx/4xx/5xx, POST, robots), 15 URL (nom de domaine + chemin, requête réduite au nom du 1ᵉʳ paramètre, sans valeur),
+  10 IP, types de visiteurs (navigateurs, Googlebot, autres robots, sans identifiant). Mémoire bornée (300 domaines,
+  20 000 URL et IP distincts). Les lignes de log ne quittent jamais l'hébergement.
+- **Envoi avec le heartbeat** (clé `traffic`, 3 fenêtres en attente au plus si le réseau échoue, fichier `~/.ik-monitor/traffic`).
+  Le serveur retire `traffic` avant la logique existante (limite de 16 Ko conservée), limite globale de 64 Ko, n'ingère
+  qu'après authentification et rate limit réussis, ignore une fenêtre invalide sans bloquer les autres, et n'accepte
+  jamais deux fois la même fenêtre (`traffic_last_ts`).
+
+Données (conservation courte pour ménager les quotas Supabase) :
+
+| Table | Contenu | Rétention |
+|---|---|---|
+| `traffic_5m` | par hébergement, seau de 5 min et domaine : requêtes, octets, 2xx–5xx, POST, robots | 3 jours |
+| `traffic_detail` | par fenêtre : totaux, URL, IP, visiteurs (JSON) | 3 jours |
+| `traffic_1h` | agrégat horaire par domaine | 30 jours |
+| `incidents.traffic_snapshot` | trafic pendant l'incident, figé 6 min après la clôture | avec l'incident |
+
+Lectures (RPC, RLS) : `get_top_domains` (top par Cloud), `get_hosting_traffic` (page d'un hébergement),
+`get_incident_traffic` (hébergements et domaines « potentiellement impliqués »). Entretien `pg_cron` : `traffic_maintenance`
+toutes les 10 min (agrégat horaire, instantanés d'incident), `purge_traffic` chaque nuit à 03:23 UTC. Les IP, données
+personnelles, ne sont donc conservées que 3 jours ; les domaines vus dans les logs ne créent pas de sites (un scanner peut
+envoyer des `Host:` arbitraires).
 
 ## 6. Statuts, incidents, silences
 
@@ -294,7 +311,7 @@ GRANT ; écritures des agents uniquement via `agent_api.*` ; aucune écriture di
 - Actions d'agent : liste blanche, paramètres bornés des deux côtés.
 - En-têtes de sécurité et CSP via `netlify.toml`.
 - Tests pgTAP de la RLS en CI ; scan de secrets en CI.
-- Données personnelles : les IP ne sont stockées qu'en agrégats top-N ; rétention 30 jours.
+- Données personnelles : les IP ne sont stockées qu'en agrégats top-N ; rétention 3 jours.
 
 ## 9. Volumes, quotas, rétention
 
@@ -307,7 +324,8 @@ Appels d'ingestion par mois (30 jours) : 2 collecteurs × 43 200 + 4 agents × 4
 | `metrics` (1 min) | 35 jours | graphiques 1 h, 6 h, 24 h, 7 j (et 30 j pour l'heure en cours) |
 | `metrics_1h` (avg + max) | 400 jours | graphique 30 j et historique long |
 | `probe_results` | 14 jours | |
-| `incident_diagnostics*` | 30 jours | |
+| `traffic_5m`, `traffic_detail` | 3 jours | domaines, URL, IP, visiteurs (phase 7) |
+| `traffic_1h` | 30 jours | trafic par domaine, historique |
 
 Le frontend n'interroge jamais les tables pour les graphiques : la RPC `get_series(cloud_id, range)` (SECURITY
 INVOKER, donc soumise à la RLS) choisit la source et la finesse et renvoie au plus 720 points :
@@ -380,8 +398,8 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, découverte des sites, mode observation | Fait |
 | 4 | Graphiques et données : `get_series`, agrégation horaire, purge, graphiques 1 h → 30 j, actualisation automatique | Fait |
 | 5 | Seuils, statuts, silences, sondes (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | Fait |
-| **6** | **Incidents et historique** (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | **En cours de validation** |
-| 7 | Diagnostic de trafic (`analyze_logs`), découverte de sites, UI de comparaison | À faire |
+| 6 | Incidents et historique (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | Fait |
+| **7** | **Diagnostic de trafic** : agent 0.3.0 (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | **En cours de validation** |
 | 8 | Durcissement, runbook, production | À faire |
 
 ## 13. Évolutions prévues (non développées au MVP)

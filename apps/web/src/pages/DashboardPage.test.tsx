@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CloudState, CloudStatusRow, CloudWithCounts } from '../lib/types'
+import type { CloudState, CloudStatusRow, CloudWithCounts, DomainTrafficRow } from '../lib/types'
 import { DashboardPage } from './DashboardPage'
 
 const fetchClouds = vi.fn<() => Promise<CloudWithCounts[]>>()
@@ -19,6 +19,8 @@ vi.mock('../features/alerts/api', async () => {
   return { ...actual, fetchCloudStatuses: () => fetchCloudStatuses() }
 })
 vi.mock('../features/incidents/api', () => ({ fetchIncidents: () => Promise.resolve([]) }))
+const fetchTopDomains = vi.fn<() => Promise<DomainTrafficRow[]>>()
+vi.mock('../features/traffic/api', () => ({ fetchTopDomains: () => fetchTopDomains() }))
 vi.mock('../features/metrics/api', () => ({ fetchSeries: () => Promise.resolve([]) }))
 vi.mock('../features/workspace/useWorkspace', () => ({
   useWorkspace: () => ({
@@ -77,6 +79,8 @@ describe('DashboardPage', () => {
     fetchCloudStates.mockResolvedValue([])
     fetchCloudStatuses.mockReset()
     fetchCloudStatuses.mockResolvedValue([])
+    fetchTopDomains.mockReset()
+    fetchTopDomains.mockResolvedValue([])
   })
 
   it('affiche l’état vide quand aucun Cloud n’existe', async () => {
@@ -99,8 +103,7 @@ describe('DashboardPage', () => {
     ])
     renderPage()
     expect(await screen.findByText('YellowTie Server Cloud 1')).toBeInTheDocument()
-    expect(screen.getByText(/3 hébergements · 62 sites · 12 vCPU/)).toBeInTheDocument()
-    expect(screen.getByText(/1 hébergement · 1 site/)).toBeInTheDocument()
+    expect(screen.getByText(/2 Server Clouds · 4 hébergements · 63 sites/)).toBeInTheDocument()
     expect(screen.getAllByText('Aucune donnée')).toHaveLength(2)
   })
 
@@ -189,5 +192,47 @@ describe('DashboardPage', () => {
     renderPage()
     expect(await screen.findByRole('link', { name: /Hébergement 1/ })).toHaveAttribute('href', '/hostings/h1')
     expect(screen.getByText(/agent non installé/)).toBeInTheDocument()
+  })
+
+  it('résume la situation en une phrase : tout est normal', async () => {
+    fetchClouds.mockResolvedValue([cloud({})])
+    fetchCloudStatuses.mockResolvedValue([status('normal')])
+    renderPage()
+    expect(await screen.findByText('Tout est normal')).toBeInTheDocument()
+  })
+
+  it('nomme le Cloud et le motif dans le bandeau quand il y a un problème', async () => {
+    fetchClouds.mockResolvedValue([cloud({}), cloud({ id: 'c2', name: 'YellowTie Server Cloud 2' })])
+    fetchCloudStatuses.mockResolvedValue([
+      status('normal', {}, 'c1'),
+      status('critical', { reasons: [{ metric: 'cpu_pct', level: 'critical', value: 92, warn: 75, crit: 90, since: new Date().toISOString() }] }, 'c2'),
+    ])
+    renderPage()
+    const banner = await screen.findByRole('status')
+    expect(banner).toHaveTextContent('YellowTie Server Cloud 2')
+    expect(banner).toHaveTextContent('CPU 92 %')
+    expect(screen.queryByText('Tout est normal')).not.toBeInTheDocument()
+  })
+
+  it('classe les hébergements par trafic et liste les domaines les plus sollicités', async () => {
+    fetchClouds.mockResolvedValue([
+      cloud({ web_hostings: [{ id: 'h1', name: 'Hébergement 1', sites: [{ count: 3 }] }, { id: 'h2', name: 'Hébergement 2', sites: [{ count: 3 }] }] }),
+    ])
+    const row = (domain: string, hosting: string, name: string, requests: number, share: number): DomainTrafficRow => ({
+      domain, web_hosting_id: hosting, hosting_name: name, requests, bytes: 0, r4xx: 0, r5xx: 0, posts: 0, bots: 0, share,
+    })
+    fetchTopDomains.mockResolvedValue([row('gros-trafic.fr', 'h2', 'Hébergement 2', 900, 90), row('petit.fr', 'h1', 'Hébergement 1', 100, 10)])
+    renderPage()
+    const domain = await screen.findByRole('link', { name: /gros-trafic\.fr/ })
+    expect(domain).toHaveAttribute('href', '/hostings/h2?domain=gros-trafic.fr')
+    const hostingLinks = screen.getAllByRole('link', { name: /^Hébergement \d/ }).map((a) => a.textContent)
+    expect(hostingLinks[0]).toContain('Hébergement 2')
+    expect(screen.queryByText(/Pas encore de trafic analysé/)).not.toBeInTheDocument()
+  })
+
+  it('explique l\'absence de trafic avant l\'installation de l\'agent 0.3.0', async () => {
+    fetchClouds.mockResolvedValue([cloud({})])
+    renderPage()
+    expect(await screen.findByText(/Pas encore de trafic analysé/)).toBeInTheDocument()
   })
 })

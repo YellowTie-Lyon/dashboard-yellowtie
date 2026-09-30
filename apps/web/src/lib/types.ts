@@ -223,3 +223,39 @@ export interface IncidentEvent {
   type: IncidentEventType
   data: { level?: 'warning' | 'critical'; from?: string; to?: string; duration_seconds?: number }
 }
+
+// --- Trafic HTTP (agent 0.3.0) -------------------------------------------------------------------------------
+/** Ligne de get_top_domains : comptage brut sur la période, jamais une cause. */
+export interface DomainTrafficRow {
+  domain: string
+  web_hosting_id: string
+  hosting_name: string
+  requests: number
+  bytes: number
+  r4xx: number
+  r5xx: number
+  posts: number
+  bots: number
+  share: number | null
+}
+
+export interface HostingTraffic {
+  minutes: number
+  totals: { requests: number; bytes: number; r2xx: number; r3xx: number; r4xx: number; r5xx: number; posts: number; bots: number }
+  sampled: boolean
+  last_at: string | null
+  domains: { domain: string; requests: number; bytes: number; r4xx: number; r5xx: number; posts: number; bots: number }[]
+  series: { ts: number; n: number; e4: number; e5: number }[]
+  paths: { domain: string; path: string; requests: number; errors: number }[]
+  ips: { ip: string; requests: number }[]
+  agents: { googlebot: number; bots: number; browsers: number; empty: number }
+}
+
+export interface IncidentTraffic {
+  from: string
+  to: string
+  requests: number
+  hostings: { hosting_id: string; name: string; requests: number; share: number }[]
+  domains: { domain: string; hosting_id: string; hosting: string; requests: number; r5xx: number; share: number }[]
+  paths: { domain: string; path: string; requests: number }[]
+}
