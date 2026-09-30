@@ -76,3 +76,23 @@ export function siteOrigin(origin: string | null, fallback: string | undefined):
     return null
   }
 }
+
+/** Traduit une erreur de l'API d'administration Supabase (invitation) en message utile à l'utilisateur. */
+export function inviteErrorMessage(error: { code?: string; message?: string } | null): { status: number; error: string } {
+  switch (error?.code) {
+    case 'email_exists':
+    case 'user_already_exists':
+      return {
+        status: 409,
+        error:
+          "Ce compte existe déjà dans Supabase sans être rattaché au workspace (invitation précédente incomplète). Supprimez-le dans Supabase > Authentication > Users, puis relancez l'invitation.",
+      }
+    case 'over_email_send_rate_limit':
+      return { status: 429, error: "Trop d'e-mails envoyés récemment (limite de Supabase). Patientez une heure ou configurez un serveur SMTP." }
+    case 'email_address_invalid':
+    case 'email_address_not_authorized':
+      return { status: 400, error: "Cette adresse e-mail est refusée par Supabase (adresse invalide ou non autorisée par le serveur d'envoi)." }
+    default:
+      return { status: 400, error: `Invitation impossible${error?.message ? ` : ${error.message}` : '.'}` }
+  }
+}

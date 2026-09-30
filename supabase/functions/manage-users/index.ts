@@ -7,7 +7,7 @@
 //    qu'après cette vérification, et seulement pour les trois actions ci-dessous ;
 //  * chaque action est validée strictement (logic.ts) et journalisée (record_user_event).
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { checkInvite, checkTarget, parseRequest, siteOrigin, type Member } from './logic.ts'
+import { checkInvite, checkTarget, inviteErrorMessage, parseRequest, siteOrigin, type Member } from './logic.ts'
 
 const corsHeaders = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin ?? '*',
@@ -59,7 +59,10 @@ Deno.serve(async (req) => {
     if (!check.ok) return json({ error: check.error }, check.status, origin)
     if (!origin) return json({ error: "Origine de la requête invalide (HTTPS requis)." }, 400, origin)
     const { data, error } = await admin.auth.admin.inviteUserByEmail(cmd.email, { redirectTo: `${origin}/bienvenue` })
-    if (error || !data.user) return json({ error: "Invitation impossible (adresse déjà utilisée par un autre compte, ou envoi d'e-mail refusé)." }, 400, origin)
+    if (error || !data.user) {
+      const m = inviteErrorMessage(error as { code?: string; message?: string } | null)
+      return json({ error: m.error }, m.status, origin)
+    }
     const { error: memberError } = await admin.from('workspace_members').insert({ workspace_id: workspaceId, user_id: data.user.id, role: cmd.role })
     if (memberError) return json({ error: "Compte créé mais rattachement au workspace impossible : réessayez ou contactez l'administrateur." }, 500, origin)
     await log('user.invited', data.user.id, { email: cmd.email, role: cmd.role })
