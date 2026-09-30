@@ -83,14 +83,28 @@ Page de l'hébergement souhaité > **Définir comme collecteur**. Aucune réinst
 ### Ajuster les seuils d'alerte
 Réglages > seuils par défaut, ou page d'un Cloud > seuils propres à ce Cloud. Comparez avec les mesures des 7 derniers jours affichées sous chaque règle avant de valider.
 
-### Inviter ou retirer un utilisateur
-Supabase > Authentication > Users > *Invite user* (aucune inscription publique). Le rôle (propriétaire / lecteur) se règle dans la table `workspace_members` (SQL Editor).
+### Inviter, modifier ou retirer un utilisateur
+Menu **Utilisateurs** (propriétaires seulement) :
+- **Inviter** : e-mail + rôle (Lecteur = consultation ; Propriétaire = tous les droits). La personne reçoit un e-mail, choisit son mot de passe (12 caractères minimum) puis configure Google Authenticator.
+- **Changer le rôle** : menu déroulant de la ligne (le dernier propriétaire ne peut pas être rétrogradé).
+- **Réinitialiser le 2FA** : pour quelqu'un qui a perdu ou changé de téléphone ; il en recréera un à sa prochaine connexion.
+- **Supprimer** : retire le compte et tous ses accès. Vous ne pouvez pas vous supprimer vous-même.
+- Une invitation qui n'arrive pas : vérifiez les indésirables, puis Supabase > Authentication > Logs. L'offre Free limite le nombre d'e-mails envoyés par heure ; un serveur SMTP personnel (Project Settings > Authentication > SMTP) lève la limite.
+
+### Connexion et double authentification (2FA)
+- Chaque connexion demande : e-mail + mot de passe, puis le code à 6 chiffres de l'application d'authentification. La base **refuse toute donnée** à une session sans code validé.
+- **Mot de passe oublié** : lien sur la page de connexion (l'e-mail contient un lien vers la page « Choisissez votre mot de passe »).
+- **Téléphone perdu** : un autre propriétaire réinitialise votre 2FA (menu Utilisateurs). Si vous êtes le **seul** propriétaire : Supabase > Authentication > Users > votre utilisateur > supprimer le facteur (Factors), puis reconnectez-vous.
+- **Changement de téléphone (ancien encore utilisable)** : Mon compte > Réinitialiser mon double facteur.
+- Les invitations et réinitialisations expirent : demandez-en un nouveau lien si « Lien expiré ».
 
 ## 5. Sécurité
 
 - Le dépôt ne contient aucun secret : la clé publique Supabase (`anon`) est volontairement publique ; la clé **secrète** (`service_role`) ne doit apparaître nulle part. Si une clé secrète a été copiée dans une conversation ou un document : Supabase > Project Settings > API Keys > la révoquer / la régénérer.
 - Chaque agent a **son** token ; il ne peut écrire que pour son hébergement. Seule l'empreinte (hash) est stockée.
 - Les adresses IP des visiteurs (top du trafic) ne sont conservées que **3 jours** ; aucune ligne de log brute n'est envoyée.
+- Accès **uniquement sur invitation** (inscription publique désactivée) avec **double authentification obligatoire** (TOTP), imposée par la base elle-même (RLS) et non seulement par l'interface.
+- Le site est **non indexé** par les moteurs de recherche (en-tête `X-Robots-Tag`, balise `meta robots` et `robots.txt`).
 - Le site impose HTTPS, une politique CSP stricte et refuse d'être affiché dans un cadre (voir `netlify.toml`).
 
 ## 6. Sauvegarde

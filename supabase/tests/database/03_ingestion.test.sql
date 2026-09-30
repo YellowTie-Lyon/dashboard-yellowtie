@@ -195,6 +195,7 @@ select throws_ok($$select * from public.cloud_server_state$$, '42501', null, 'an
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.metrics), 3, 'le propriétaire lit les métriques');
 select is((select count(*)::int from public.cloud_server_state), 1, 'le propriétaire lit l''état du Cloud');
 select is((select count(*)::int from public.web_hosting_state), 2, 'le propriétaire lit l''état des agents');
@@ -203,6 +204,7 @@ select throws_ok($$insert into public.metrics (cloud_server_id, ts) values (gen_
 select throws_ok($$update public.web_hosting_state set anomaly = null$$, '42501', null,
   'aucune écriture d''état depuis le client');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.metrics) + (select count(*)::int from public.cloud_server_state)
         + (select count(*)::int from public.web_hosting_state), 0, 'un étranger ne voit aucune métrique');
 

@@ -45,6 +45,7 @@ select is((select detail ->> 'buckets' from public.job_state where name = 'rollu
 -- ============================ get_series (propriétaire) ===========================================
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 
 select is((select count(*)::int from public.get_series('00000000-0000-0000-0000-0000000000c1', '6h')),
           (select count(*)::int from public.metrics where ts >= now() - interval '6 hours'),
@@ -76,11 +77,13 @@ select is((select count(*)::int from public.metrics where ts < now() - interval 
 select is((select count(*)::int from public.metrics_1h), 6, 'les agrégats horaires survivent à la purge des relevés');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2"}', true);
 select is((select coalesce(sum(n), 0)::int from public.get_series('00000000-0000-0000-0000-0000000000c1', '30d')
             where ts < now() - interval '8 days'), 30, '30d : l''ancien pic reste visible via l''agrégat horaire');
 
 -- ============================ RLS et droits =======================================================
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated","aal":"aal2"}', true);
 select is((select count(*)::int from public.get_series('00000000-0000-0000-0000-0000000000c1', '30d')), 0,
           'un étranger ne voit aucun point');
 select throws_ok($$select public.rollup_metrics()$$, '42501', null, 'un client ne peut pas lancer l''agrégation');

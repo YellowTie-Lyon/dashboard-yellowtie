@@ -11,6 +11,8 @@ function renderAt(state: Partial<AuthState>) {
     loading: false,
     signIn: vi.fn(),
     signOut: vi.fn(),
+    mfa: 'ok',
+    refreshMfa: vi.fn(),
     ...state,
   }
   return render(

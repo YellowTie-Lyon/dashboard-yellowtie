@@ -13,7 +13,10 @@ import { IncidentsPage } from './pages/IncidentsPage'
 import { HostingPage } from './pages/HostingPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { AccountPage } from './pages/AccountPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UsersPage } from './pages/UsersPage'
+import { WelcomePage } from './pages/WelcomePage'
 import { TvPage } from './pages/TvPage'
 
 const queryClient = new QueryClient({
@@ -31,6 +34,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/bienvenue" element={<WelcomePage />} />
             <Route element={<RequireAuth />}>
               <Route path="tv" element={<TvPage />} />
               <Route element={<AppShell />}>
@@ -40,6 +44,8 @@ export default function App() {
                 <Route path="incidents" element={<IncidentsPage />} />
                 <Route path="incidents/:incidentId" element={<IncidentPage />} />
                 <Route path="reglages" element={<SettingsPage />} />
+                <Route path="utilisateurs" element={<UsersPage />} />
+                <Route path="compte" element={<AccountPage />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFoundPage />} />

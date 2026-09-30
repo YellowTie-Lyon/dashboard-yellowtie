@@ -259,3 +259,15 @@ export interface IncidentTraffic {
   domains: { domain: string; hosting_id: string; hosting: string; requests: number; r5xx: number; share: number }[]
   paths: { domain: string; path: string; requests: number }[]
 }
+
+// --- Utilisateurs ------------------------------------------------------------------------------------------------
+export interface WorkspaceMember {
+  workspace_id: string
+  user_id: string
+  email: string
+  role: WorkspaceRole
+  joined_at: string
+  last_sign_in_at: string | null
+  mfa_enabled: boolean
+  is_self: boolean
+}

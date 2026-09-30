@@ -41,6 +41,16 @@ jobs:
       - run: agent/tests/run.sh
       - run: agent/tests/install-test.sh
 
+  edge:
+    name: Fonction Edge (logique de manage-users)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --experimental-strip-types supabase/functions/manage-users/logic.test.mjs
+
   database:
     name: Base de données (migrations + pgTAP)
     runs-on: ubuntu-latest

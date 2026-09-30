@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
 import { fetchOpenIncidentCount } from '../features/incidents/api'
+import { useWorkspace } from '../features/workspace/useWorkspace'
 import { LIVE } from '../lib/live'
 import { Logo } from './Logo'
 import { LiveIndicator } from './LiveIndicator'
@@ -14,6 +15,7 @@ export function AppShell() {
   const { user, signOut } = useAuth()
   const open = useQuery({ queryKey: ['incidents', 'open-count'], queryFn: fetchOpenIncidentCount, refetchInterval: LIVE.fast })
   const openCount = open.data ?? 0
+  const { canWrite } = useWorkspace()
 
   return (
     <div className="min-h-screen">
@@ -38,6 +40,7 @@ export function AppShell() {
               )}
             </Link>
             <Link to="/reglages" className={navLink}>Réglages</Link>
+            {canWrite && <Link to="/utilisateurs" className={navLink}>Utilisateurs</Link>}
             <Link to="/tv" className={`${navLink} gap-1.5`} title="Affichage plein écran pour une TV ou un mur d'écrans">
               <svg viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-4">
                 <rect x="3" y="4" width="18" height="12" rx="2" />
@@ -50,7 +53,7 @@ export function AppShell() {
           <div className="flex items-center gap-3 text-sm">
             <SystemAlert />
             <span className="hidden lg:block"><LiveIndicator /></span>
-            <span className="hidden text-slate-400 xl:inline">{user?.email}</span>
+            <Link to="/compte" className="hidden text-slate-300 underline-offset-2 hover:text-brand hover:underline xl:inline" title="Mon compte">{user?.email}</Link>
             <button
               type="button"
               onClick={() => void signOut()}
