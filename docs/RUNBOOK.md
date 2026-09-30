@@ -104,11 +104,11 @@ L'offre Supabase Free ne garantit pas de sauvegarde automatique restaurable : **
 
 ## 8. Liste de contrôle avant de considérer la production « stable »
 
-- [ ] Les 6 agents affichent une version grise (à jour) et un heartbeat récent.
+- [x] Les 6 agents affichent une version grise (à jour) et un heartbeat récent.
 - [ ] Réglages > Tâches planifiées : toutes « En marche ».
 - [ ] Un test réel : arrêter volontairement un agent 5 minutes → le Cloud passe en incident « agent » puis revient et l'incident se clôt seul.
 - [ ] Seuils comparés aux 7 jours réels, puis validés.
 - [ ] Sondes : URL renseignées, une sonde réussie visible dans la page de l'hébergement.
-- [ ] Clé secrète Supabase révoquée si elle a déjà été exposée.
+- [x] Clé secrète Supabase révoquée (fait).
 - [ ] Quotas : stockage sous 50 % après une semaine ; au-delà, réduire les conservations.
-- [ ] Comparaison ponctuelle load/CPU avec la console Infomaniak (le test CPU synchronisé sur le Cloud 2 reste à faire).
+- [x] Comparaison load/CPU avec la console Infomaniak (test CPU synchronisé sur le Cloud 2 fait).

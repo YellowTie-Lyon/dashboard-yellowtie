@@ -392,7 +392,7 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 
 | Phase | Contenu | État |
 |---|---|---|
-| 0 | Tests terrain | Fait (CPU synchronisé + comparaison console à finaliser) |
+| 0 | Tests terrain | Fait (CPU synchronisé et comparaison console validés) |
 | 1 | Fondations : repo, Vite/React/TS/Tailwind, Supabase (workspaces, RLS, tests), Auth sur invitation, CI, Netlify | Fait |
 | 2 | Inventaire et tokens : Clouds, hébergements, sites, désignation du collecteur, génération / rotation / révocation de token | Fait |
 | 3 | Agent + ingestion : `ik-agent.sh`, `install.sh`, `agent_heartbeat`, spool, tests, affichage du dernier relevé et de l'état des agents, découverte des sites, mode observation | Fait |
@@ -400,7 +400,7 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 5 | Seuils, statuts, silences, sondes (sans notification) : règles configurables, hystérésis, évaluation chaque minute, diagnostic des silences, sondes HTTP | Fait |
 | 6 | Incidents et historique (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | Fait |
 | 7 | Diagnostic de trafic : agent 0.3.x (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | Fait |
-| **8** | **Exploitation** : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | **En cours de validation** |
+| 8 | Exploitation : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | Fait |
 
 **Exploitation (phase 8)** : `get_storage_stats()` (SECURITY DEFINER, membres seulement) renvoie la taille de la base et des 10
 plus grosses tables ; Réglages affiche le quota (500 Mo en offre Free), l'état des six tâches planifiées (`evaluate`, `rollup`,
