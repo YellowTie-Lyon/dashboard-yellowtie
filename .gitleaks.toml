@@ -1,0 +1,9 @@
+# Configuration du scan de secrets (gitleaks, lancé par la CI).
+# Règles par défaut + exclusion des jeux de test : les tests de l'agent utilisent des valeurs FACTICES
+# (faux token « ikh_0123456789ab_… », fausse clé « sb_publishable_test12345 ») qui ressemblent à de vrais secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valeurs factices des tests de l'agent"
+paths = ['''^agent/tests/''']
