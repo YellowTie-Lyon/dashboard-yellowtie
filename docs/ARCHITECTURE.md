@@ -107,8 +107,11 @@ le fichier d'état de l'agent. Premier relevé, redémarrage ou compteur décroi
 POST {SUPABASE_URL}/rest/v1/rpc/agent_heartbeat
 apikey: <clé publique>                (exigée par la passerelle, non secrète)
 x-agent-token: ikh_<12 hex>_<64 hex>  (via curl -H @fichier 600, jamais dans ps)
-Prefer: params=single-object          (le corps JSON est le paramètre)
 ```
+
+`agent_heartbeat` a **un seul paramètre jsonb sans nom** : c'est la condition pour que PostgREST lui transmette le
+corps JSON entier (un paramètre nommé fait échouer l'appel en `PGRST202`). Un test pgTAP verrouille cette exigence.
+La logique vit dans `agent_heartbeat_impl`, fermée aux clients.
 
 ```json
 { "v": 1, "agent_version": "0.1.0", "hostname": "od-34b55c",

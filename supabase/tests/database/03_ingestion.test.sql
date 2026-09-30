@@ -1,6 +1,6 @@
 -- Tests pgTAP : authentification des agents, validation, rate limit, ingestion, RLS de lecture.
 begin;
-select plan(47);
+select plan(50);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@example.test'),   -- 1er utilisateur : propriétaire
@@ -53,6 +53,16 @@ create table public.tests_res (label text, r jsonb);
 grant all on public.tests_res to anon;
 
 set local role anon;
+
+-- ============================ Contrat PostgREST ==================================================
+-- PostgREST n'envoie le corps JSON entier qu'à une fonction à UN SEUL paramètre jsonb SANS NOM.
+select is((select proargnames from pg_proc where proname = 'agent_heartbeat' and pronamespace = 'public'::regnamespace),
+          null, 'agent_heartbeat a un paramètre sans nom (exigence PostgREST pour recevoir tout le corps)');
+select is((select pronargs::int from pg_proc where proname = 'agent_heartbeat' and pronamespace = 'public'::regnamespace),
+          1, 'agent_heartbeat n''a qu''un seul paramètre');
+set local role anon;
+select throws_ok($$select public.agent_heartbeat_impl('{"v":1}'::jsonb)$$, '42501', null,
+  'la fonction interne n''est pas appelable par les clients');
 
 -- ============================ Authentification ===================================================
 select throws_ok($$select public.agent_heartbeat('{"v":1}'::jsonb)$$, 'PT401', 'unauthorized', 'sans header : 401');

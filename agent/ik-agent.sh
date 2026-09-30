@@ -12,7 +12,7 @@
 # Usage : ik-agent.sh [--verbose] [--dry-run] | --version | --help
 set -u
 
-readonly AGENT_VERSION="0.1.0"
+readonly AGENT_VERSION="0.1.1"
 readonly MAX_SPOOL=30
 readonly SLOW_REFRESH_S=300     # df / stat / cœurs : toutes les 5 minutes
 readonly MAX_CPU_GAP_S=300      # au-delà, l'écart entre deux relevés rend le CPU % trompeur
@@ -225,7 +225,7 @@ save_spool() {
 }
 
 main() {
-  local now body points last_error backlog hostname="${HOSTNAME:-unknown}" code resp err
+  local now body points last_error backlog hostname="${HOSTNAME:-unknown}" code resp err api_msg
 
   printf -v now '%(%s)T' -1
   [[ ${IK_NOW:-} =~ ^[0-9]+$ ]] && now=$IK_NOW
@@ -272,10 +272,13 @@ main() {
   # --- Envoi : le token ne passe jamais dans la ligne de commande (visible via ps) mais dans un fichier 600.
   { printf 'x-agent-token: %s\n' "$IK_TOKEN"; printf 'apikey: %s\n' "$IK_API_KEY"; } >"$HDR"
   code=$(curl -sS -o "$RESP" -w '%{http_code}' --connect-timeout 5 --max-time 10 --retry 0 \
-    -X POST -H "@$HDR" -H 'Content-Type: application/json' -H 'Prefer: params=single-object' \
+    -X POST -H "@$HDR" -H 'Content-Type: application/json' \
     --data-binary "$body" "$IK_API_URL/rest/v1/rpc/agent_heartbeat" 2>"$CURL_ERR")
   code=${code:-000}
   resp=""; [[ -r $RESP ]] && resp=$(<"$RESP")
+  # Message d'erreur de l'API (PostgREST) : rendu visible dans le journal pour faciliter le diagnostic.
+  api_msg=""
+  if [[ $code != 200 && $resp =~ \"message\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then api_msg=${BASH_REMATCH[1]}; fi
 
   case $code in
     200)
@@ -290,7 +293,7 @@ main() {
       read -r err <"$CURL_ERR" 2>/dev/null
       note_error "reseau : ${err:-echec de connexion}"
       ;;
-    *) note_error "HTTP $code" ;;
+    *) note_error "HTTP $code${api_msg:+ - $api_msg}" ;;
   esac
 
   if [[ $ERR_NOW != "${S[last_error]:-}" ]]; then

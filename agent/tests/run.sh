@@ -121,6 +121,13 @@ check "le 1er envoi réussi signale encore l'erreur précédente" has "$(body)" 
 export IK_NOW=4000240; "$AGENT"
 check "plus d'erreur ensuite" eq "$(body | jq -c '.agent.last_error')" null
 
+# --- 8b. Erreur d'API : le message du serveur est journalisé (diagnostic) --------------------------------
+new_env; as_collector
+export MOCK_HTTP_CODE=404 MOCK_BODY='{"code":"PGRST202","message":"Could not find the function public.agent_heartbeat(agent, v) in the schema cache"}'
+export IK_NOW=4500000; "$AGENT"
+check "le message de l'API est journalisé" has "$(cat "$IK_STATE_DIR/agent.log")" "HTTP 404 - Could not find the function public.agent_heartbeat"
+check "aucun en-tête Prefer inutile" eq "$([[ $(cat "$MOCK_LOG") == *Prefer* ]] && echo yes || echo no)" no
+
 # --- 9. Le serveur retire le rôle de collecteur ---------------------------------------------------------
 new_env; as_collector; export IK_NOW=5000000 MOCK_BODY='{"ok": true, "collector": false, "actions": []}'
 "$AGENT"
@@ -141,7 +148,7 @@ check "token de format invalide refusé" eq "$(curl_calls)" 0
 new_env; as_collector
 out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : aucun appel réseau" eq "$(curl_calls)" 0
-check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.1.0"
+check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.1.1"
 check "dry-run : ne remplit pas le spool" eq "$(spool_lines)" 0
 
 # --- 12. Verrou : une exécution déjà en cours empêche le chevauchement ----------------------------------
