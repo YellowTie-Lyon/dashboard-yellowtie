@@ -148,7 +148,7 @@ check "token de format invalide refusé" eq "$(curl_calls)" 0
 new_env; as_collector
 out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : aucun appel réseau" eq "$(curl_calls)" 0
-check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.2.0"
+check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.3.0"
 check "dry-run : ne remplit pas le spool" eq "$(spool_lines)" 0
 
 # --- 12. Verrou : une exécution déjà en cours empêche le chevauchement ----------------------------------
@@ -203,6 +203,75 @@ out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : la liste des sites est visible" eq "$(printf '%s' "$out" | jq -c '.domains')" '["exemple.fr"]'
 new_env; for i in $(seq 1 230); do mkdir -p "$IK_HOME/sites/site$i.fr"; done; "$AGENT"
 check "plafond de 200 sites par envoi" eq "$(body | jq '.domains | length')" 200
+
+# --- Trafic : analyse de l'access.log --------------------------------------------------------------------
+mk_log() { # mk_log <nb de lignes> : lignes d'access.log réalistes sur deux domaines + bruit
+  local i
+  for ((i = 0; i < $1; i++)); do
+    printf 'www.exemple.fr 203.0.113.9 - - [30/Sep/2026:09:07:39 +0200] "POST /wp-login.php?redirect_to=x&y=1 HTTP/1.1" 200 1234 "-" "Mozilla/5.0 (X11) Firefox/149"\n'
+    printf 'autre.fr 66.249.79.161 - - [30/Sep/2026:09:07:40 +0200] "GET /shop/produit/ HTTP/1.1" 503 58 "-" "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"\n'
+  done
+}
+new_env; export IK_NOW=7000000; "$AGENT"
+check "première analyse : aucun historique relu" eq "$(body | jq 'has("traffic")')" false
+check "décalage initial = taille du fichier" has "$(cat "$IK_STATE_DIR/state")" "tr_off=5000"
+: >"$IK_HOME/ik-logs/access.log"; mk_log 10 >>"$IK_HOME/ik-logs/access.log"
+export IK_NOW=7000060; "$AGENT"
+check "moins de 5 minutes : pas d'analyse" eq "$(body | jq 'has("traffic")')" false
+export IK_NOW=7000300; "$AGENT"
+check "fenêtre de trafic envoyée" eq "$(body | jq '.traffic | length')" 1
+check "total de requêtes" eq "$(body | jq '.traffic[0].n')" 20
+check "domaines regroupés (www. retiré)" eq "$(body | jq -c '[.traffic[0].d[].h] | sort')" '["autre.fr","exemple.fr"]'
+check "erreurs 5xx comptées" eq "$(body | jq '.traffic[0].s[3]')" 10
+check "POST comptés" eq "$(body | jq '.traffic[0].m')" 10
+check "Googlebot reconnu" eq "$(body | jq '.traffic[0].ua.g')" 10
+check "navigateurs comptés" eq "$(body | jq '.traffic[0].ua.h')" 10
+check "URL : la requête est réduite au nom du premier paramètre" eq "$(body | jq -r '[.traffic[0].u[].p] | sort | .[0]')" "/shop/produit/"
+check "URL avec paramètre sans valeur" has "$(body | jq -r '[.traffic[0].u[].p] | join(" ")')" "/wp-login.php?redirect_to"
+check "IP active remontée" has "$(body | jq -r '[.traffic[0].i[].ip] | join(" ")')" "203.0.113.9"
+check "aucune ligne brute dans le message" hasnt "$(body)" "Mozilla"
+check "fenêtre acquittée : plus rien en attente" eq "$(grep -c . "$IK_STATE_DIR/traffic" 2>/dev/null || true)" 0
+export IK_NOW=7000600; "$AGENT"
+check "rien de nouveau dans le log : pas de fenêtre" eq "$(body | jq 'has("traffic")')" false
+
+# Envoi échoué : la fenêtre reste en attente, renvoyée ensuite (3 au plus).
+new_env; export IK_NOW=7100000; "$AGENT"
+mk_log 3 >>"$IK_HOME/ik-logs/access.log"; export MOCK_HTTP_CODE=500 IK_NOW=7100300; "$AGENT"
+check "HTTP 500 : la fenêtre est conservée" eq "$(grep -c . "$IK_STATE_DIR/traffic")" 1
+mk_log 3 >>"$IK_HOME/ik-logs/access.log"; export IK_NOW=7100600; "$AGENT"
+mk_log 3 >>"$IK_HOME/ik-logs/access.log"; export IK_NOW=7100900; "$AGENT"
+mk_log 3 >>"$IK_HOME/ik-logs/access.log"; export IK_NOW=7101200; "$AGENT"
+check "au plus 3 fenêtres en attente" eq "$(grep -c . "$IK_STATE_DIR/traffic")" 3
+unset MOCK_HTTP_CODE; export IK_NOW=7101260; "$AGENT"
+check "rétabli : les 3 fenêtres partent ensemble" eq "$(body | jq '.traffic | length')" 3
+check "puis la file est vidée" eq "$(grep -c . "$IK_STATE_DIR/traffic" 2>/dev/null || true)" 0
+
+# Rotation du log (nouvel inode, fichier plus petit) : on relit le nouveau fichier depuis le début.
+new_env; export IK_NOW=7200000; "$AGENT"
+rm "$IK_HOME/ik-logs/access.log"; mk_log 2 >"$IK_HOME/ik-logs/access.log"; export IK_NOW=7200300; "$AGENT"
+check "après rotation : nouveau fichier analysé depuis le début" eq "$(body | jq '.traffic[0].n')" 4
+
+# Fichier volumineux : seule la fin (plafond) est lue, et signalée « trunc ».
+new_env; export IK_NOW=7300000; "$AGENT"
+mk_log 200000 >>"$IK_HOME/ik-logs/access.log"
+export IK_NOW=7300300; "$AGENT"
+check "log énorme : lecture plafonnée et marquée tronquée" eq "$(body | jq '.traffic[0].trunc')" 1
+check "log énorme : moins de lignes que dans le fichier" eq "$(body | jq '.traffic[0].n < 400000')" true
+check "message de trafic borné" eq "$(body | jq -c '.traffic[0]' | wc -c | awk '{print ($1 < 12000)}')" 1
+
+# Lignes illisibles et domaines hostiles : comptées « bad » ou regroupées, jamais injectées dans le JSON.
+new_env; export IK_NOW=7400000; "$AGENT"
+{ printf 'n importe quoi\n'; printf 'evil"host 1.2.3.4 - - [x] "GET /a\\"b HTTP/1.1" 200 5 "-" "ua"\n'
+  printf 'ok.fr 1.2.3.4 - - [x] "GET /ok?q=<script> HTTP/1.1" 200 5 "-" "curl/8"\n'; } >>"$IK_HOME/ik-logs/access.log"
+export IK_NOW=7400300; "$AGENT"
+check "corps toujours du JSON valide" eq "$(body | jq -e '.traffic[0].d' >/dev/null 2>&1; echo $?)" 0
+check "ligne illisible comptée" eq "$(body | jq '.traffic[0].bad >= 1')" true
+check "robot générique reconnu (curl)" eq "$(body | jq '.traffic[0].ua.b')" 1
+check "caractères dangereux d'une URL neutralisés" eq "$(body | jq -r '[.traffic[0].u[].p] | map(select(test("[<>\"]"))) | length')" 0
+
+# Sans access.log : pas d'erreur, pas de trafic.
+new_env; rm -f "$IK_HOME/ik-logs/access.log"; export IK_NOW=7500000; "$AGENT"; export IK_NOW=7500300; "$AGENT"
+check "sans access.log : heartbeat normal" eq "$(body | jq 'has("traffic")')" false
 
 echo
 echo "Résultat : $PASS réussis, $FAIL échoués"

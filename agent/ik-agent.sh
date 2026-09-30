@@ -9,15 +9,20 @@
 # Conçu pour consommer très peu : lecture de /proc par builtins Bash, un seul fork obligatoire
 # (curl) en fonctionnement normal, df / stat seulement toutes les 5 minutes.
 #
+#   * analyse l'access.log toutes les 5 min (lecture des seuls octets nouveaux, 2 processus, agrégats uniquement).
+#
 # Usage : ik-agent.sh [--verbose] [--dry-run] | --version | --help
 set -u
 
-readonly AGENT_VERSION="0.2.0"
+readonly AGENT_VERSION="0.3.0"
 readonly MAX_SPOOL=30
 readonly SLOW_REFRESH_S=300     # df / stat / cœurs : toutes les 5 minutes
 readonly MAX_CPU_GAP_S=300      # au-delà, l'écart entre deux relevés rend le CPU % trompeur
 readonly MAX_DOMAINS=200        # sites remontés au plus (dossiers de ~/sites)
 readonly DOMAINS_EVERY_S=21600  # liste des sites renvoyée au moins toutes les 6 heures (ou dès qu'elle change)
+readonly TRAFFIC_EVERY_S=290    # analyse de l'access.log : une fois toutes les ~5 minutes
+readonly TRAFFIC_MAX_BYTES=4194304   # au plus 4 Mo de log lus par analyse (les plus récents) ; 1 Mo si le serveur est chargé
+readonly MAX_TRAFFIC_PENDING=3  # fenêtres d'analyse conservées en attente d'envoi
 
 export LC_ALL=C
 export PATH="${PATH:-/usr/bin:/bin}:/usr/local/bin:/usr/bin:/bin"
@@ -34,6 +39,7 @@ HDR="$DIR/headers"
 RESP="$DIR/response"
 CURL_ERR="$DIR/curl.err"
 LOCK="$DIR/lock"
+TRAFFIC="$DIR/traffic"
 
 VERBOSE=0
 DRYRUN=0
@@ -248,6 +254,148 @@ save_spool() {
   if ((${#spool[@]} == 0)); then : >"$SPOOL"; else printf '%s\n' "${spool[@]}" >"$SPOOL"; fi
 }
 
+# ---------------------------------------------------------------------------------------------------
+# Trafic : analyse de l'access.log (format « vhost ip - - [date] "MÉTHODE /chemin HTTP/x" code octets "ref" "ua" »).
+# Toutes les ~5 minutes : on ne lit que les octets ajoutés depuis la dernière analyse (décalage mémorisé), plafonnés à
+# TRAFFIC_MAX_BYTES ; un seul awk agrège (domaines, URL, IP, types de visiteurs, codes) et n'émet qu'un résumé JSON.
+# Aucune ligne de log ne quitte l'hébergement. Coût : 3 processus courts (subshell, tail, awk) toutes les 5 minutes.
+# ---------------------------------------------------------------------------------------------------
+read -r -d '' AWK_TRAFFIC <<'EOF' || true
+function pick(arr,   k, best, bk) { best = -1; bk = ""; for (k in arr) if (arr[k] > best) { best = arr[k]; bk = k } return bk }
+BEGIN { FS = "\""; cb = 0; RE_BAD = "[^A-Za-z0-9._~:/?@!$&()*+,;=%-]" }
+{
+  len = length($0) + 1
+  if (cb + len > LIMIT) exit
+  cb += len
+  if (NR == 1 && SKIP1 == 1) next
+  lines++
+  if (NF < 6) { bad++; next }
+  n = split($1, a, " ")
+  if (n < 2) { bad++; next }
+  split($2, r, " "); split($3, st, " ")
+  code = st[1]
+  if (code !~ /^[0-9][0-9][0-9]$/) { bad++; next }
+  vh = tolower(a[1])
+  if (substr(vh, 1, 1) == "[") { sub(/^\[/, "", vh); sub(/\].*$/, "", vh) }
+  sub(/:[0-9]+$/, "", vh); sub(/^www\./, "", vh)
+  if (vh !~ /^[a-z0-9.-]+$/ || length(vh) > 100) vh = "(autre)"
+  ip = a[2]
+  if (ip !~ /^[0-9a-fA-F:.]+$/ || length(ip) > 45) ip = "?"
+  path = r[2]
+  q = index(path, "?")
+  if (q > 0) {
+    rest = substr(path, q + 1); path = substr(path, 1, q - 1)
+    e = index(rest, "="); if (e > 0) rest = substr(rest, 1, e - 1)
+    e = index(rest, "&"); if (e > 0) rest = substr(rest, 1, e - 1)
+    path = path "?" rest
+  }
+  if (path == "") path = "/"
+  gsub(RE_BAD, "_", path)
+  if (length(path) > 100) path = substr(path, 1, 100)
+  nb = st[2] + 0
+  c = substr(code, 1, 1)
+  ua = tolower($6)
+  bot = 0
+  if (ua ~ /googlebot/) { ug++; bot = 1 }
+  else if (ua ~ /bot|crawl|spider|slurp|facebookexternalhit|semrush|ahrefs|bytespider|petalbot|headless|python|curl|wget|scrapy|go-http|libwww|okhttp/) { ub++; bot = 1 }
+  else if (ua == "" || ua == "-") ue++
+  else uh++
+
+  if (!(vh in dn) && nd >= 300) vh = "(autre)"
+  if (!(vh in dn)) { nd++; dn[vh] = 0; db[vh] = 0 }
+  dn[vh]++; db[vh] += nb; dbt[vh] += bot
+  if (c == "2") d2[vh]++; else if (c == "3") d3[vh]++; else if (c == "4") d4[vh]++; else if (c == "5") d5[vh]++
+  if (r[1] == "POST") { dm[vh]++; tm++ }
+  tot++; tb += nb
+  if (c == "2") t2++; else if (c == "3") t3++; else if (c == "4") t4++; else if (c == "5") t5++
+
+  pk = vh "\t" path
+  if (pk in pn || np < 20000) { if (!(pk in pn)) np++; pn[pk]++; if (c == "4" || c == "5") pe[pk]++ }
+  if (ip in ipn || ni < 20000) { if (!(ip in ipn)) ni++; ipn[ip]++ }
+}
+END {
+  out = sprintf("{\"ts\":%d,\"win\":%d,\"cb\":%d,\"lines\":%d,\"bad\":%d,\"trunc\":%d,\"n\":%d,\"b\":%.0f,\"s\":[%d,%d,%d,%d],\"m\":%d,\"ua\":{\"g\":%d,\"b\":%d,\"h\":%d,\"e\":%d},\"d\":[",
+    TS, WIN, cb, lines, bad, TRUNC, tot, tb, t2, t3, t4, t5, tm, ug, ub, uh, ue)
+  sep = ""
+  for (i = 0; i < 30; i++) {
+    k = pick(dn); if (k == "") break
+    out = out sprintf("%s{\"h\":\"%s\",\"n\":%d,\"b\":%.0f,\"s\":[%d,%d,%d,%d],\"m\":%d,\"bt\":%d}", sep, k, dn[k], db[k], d2[k], d3[k], d4[k], d5[k], dm[k], dbt[k])
+    sep = ","; delete dn[k]
+  }
+  out = out "],\"u\":["; sep = ""
+  for (i = 0; i < 15; i++) {
+    k = pick(pn); if (k == "") break
+    split(k, kk, "\t")
+    out = out sprintf("%s{\"h\":\"%s\",\"p\":\"%s\",\"n\":%d,\"e\":%d}", sep, kk[1], kk[2], pn[k], pe[k])
+    sep = ","; delete pn[k]
+  }
+  out = out "],\"i\":["; sep = ""
+  for (i = 0; i < 10; i++) {
+    k = pick(ipn); if (k == "") break
+    out = out sprintf("%s{\"ip\":\"%s\",\"n\":%d}", sep, k, ipn[k])
+    sep = ","; delete ipn[k]
+  }
+  print out "]}"
+}
+EOF
+
+TRAFFIC_JSON=""
+# Charge les fenêtres en attente (une ligne JSON par fenêtre, 3 au plus) dans TRAFFIC_JSON.
+load_traffic() {
+  local line n=0
+  TRAFFIC_JSON=""
+  [[ -r $TRAFFIC ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == '{"ts":'*'}' && ${#line} -lt 14000 ]] || continue
+    TRAFFIC_JSON+="${TRAFFIC_JSON:+,}$line"; ((n++))
+  done <"$TRAFFIC"
+  ((n > 0))
+}
+
+collect_traffic() {
+  local now=$1 sz ino off cap limit skip=0 trunc=0 out cb newoff l1 _ cores=0 line last=0
+  [[ -r $IK_LOG_PATH ]] || return 0
+  if [[ ${S[tr_ts]:-} =~ ^[0-9]+$ ]]; then last=${S[tr_ts]}; fi
+  ((now - last < TRAFFIC_EVERY_S && now >= last)) && return 0
+  command -v awk >/dev/null 2>&1 || { note_error "awk absent : analyse du trafic impossible"; return 0; }
+  read -r sz ino < <(stat -c '%s %i' -- "$IK_LOG_PATH" 2>/dev/null)
+  [[ $sz =~ ^[0-9]+$ && $ino =~ ^[0-9]+$ ]] || return 0
+  S[tr_ts]=$now
+
+  # Première analyse : on part de la fin du fichier (aucun historique relu).
+  if [[ ! ${S[tr_off]:-} =~ ^[0-9]+$ || ! ${S[tr_ino]:-} =~ ^[0-9]+$ ]]; then S[tr_ino]=$ino; S[tr_off]=$sz; return 0; fi
+  off=${S[tr_off]}
+  if [[ ${S[tr_ino]} != "$ino" ]] || ((off > sz)); then off=0; fi   # rotation ou troncature : on relit le nouveau fichier
+  ((sz > off)) || { S[tr_ino]=$ino; S[tr_off]=$off; return 0; }
+
+  # Garde-fou de charge : serveur déjà très chargé (load 1 min > 2 × cœurs) => lecture 4 fois plus courte.
+  cap=$TRAFFIC_MAX_BYTES
+  if read -r l1 _ <"$PROC/loadavg" 2>/dev/null && [[ $l1 =~ ^[0-9]+ ]]; then
+    while IFS= read -r line; do [[ $line == processor* ]] && ((cores++)); done <"$PROC/cpuinfo" 2>/dev/null
+    ((cores > 0 && ${l1%.*} > 2 * cores)) && cap=$((cap / 4))
+  fi
+  if ((sz - off > cap)); then off=$((sz - cap)); skip=1; trunc=1; fi
+  limit=$((sz - off))
+
+  out=$(tail -c "+$((off + 1))" -- "$IK_LOG_PATH" 2>/dev/null | awk -v LIMIT="$limit" -v SKIP1="$skip" -v TS="$now" -v WIN="$TRAFFIC_EVERY_S" -v TRUNC="$trunc" "$AWK_TRAFFIC" 2>/dev/null)
+  if [[ $out != '{"ts":'*'}' || ${#out} -gt 12000 ]]; then note_error "analyse du trafic invalide"; return 0; fi
+  cb=0; [[ $out =~ \"cb\":([0-9]+) ]] && cb=${BASH_REMATCH[1]}
+  newoff=$((off + cb))
+  # Une ligne plus longue que la fenêtre de lecture ne doit pas bloquer l'analyse : on saute à la fin.
+  if ((cb == 0 && limit >= cap)); then newoff=$sz; fi
+  S[tr_ino]=$ino; S[tr_off]=$newoff
+  [[ $out == *'"lines":0,'* ]] && return 0
+  ((DRYRUN)) && return 0
+
+  local -a pending=()
+  if [[ -r $TRAFFIC ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do [[ $line == '{"ts":'*'}' ]] && pending+=("$line"); done <"$TRAFFIC"
+  fi
+  pending+=("$out")
+  ((${#pending[@]} > MAX_TRAFFIC_PENDING)) && pending=("${pending[@]: -MAX_TRAFFIC_PENDING}")
+  printf '%s\n' "${pending[@]}" >"$TRAFFIC"
+}
+
 main() {
   local now body points last_error backlog hostname="${HOSTNAME:-unknown}" code resp err api_msg send_domains=0 dom_last
 
@@ -278,6 +426,10 @@ main() {
     fi
   fi
 
+  # --- Trafic (toutes les ~5 min) : la fenêtre calculée est mise en attente puis envoyée avec le heartbeat -----
+  collect_traffic "$now"
+  load_traffic
+
   # --- Corps de la requête ------------------------------------------------------------------------------
   [[ $hostname =~ ^[A-Za-z0-9._-]{1,255}$ ]] || hostname="unknown"
   backlog=${#spool[@]}
@@ -297,6 +449,7 @@ main() {
     "$AGENT_VERSION" "$hostname" "$backlog" "$last_error" "${S[log_size]:-0}" "${S[log_inode]:-0}" "$points"
 
   if ((send_domains)); then body="${body%\}},\"domains\":[$DOMAINS_JSON]}"; fi
+  if [[ -n $TRAFFIC_JSON ]]; then body="${body%\}},\"traffic\":[$TRAFFIC_JSON]}"; fi
 
   if ((DRYRUN)); then
     printf '%s\n' "$body"
@@ -319,6 +472,7 @@ main() {
     200)
       if [[ $resp =~ \"collector\"[[:space:]]*:[[:space:]]*true ]]; then S[collector]=1; else S[collector]=0; fi
       spool=()
+      [[ -n $TRAFFIC_JSON ]] && : >"$TRAFFIC"
       if ((send_domains)); then S[dom_ts]=$now; S[dom_n]=$DOMAINS_N; fi
       # Actions : liste blanche, non implémentée dans cette version (analyse de logs en phase 7).
       if [[ $resp =~ \"type\"[[:space:]]*:[[:space:]]*\" ]]; then note_error "action recue non supportee par cette version de l agent ($AGENT_VERSION)"; else ERR_NOW=""; fi
