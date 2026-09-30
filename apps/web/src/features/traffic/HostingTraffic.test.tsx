@@ -44,7 +44,7 @@ describe('HostingTraffic', () => {
     fetchHostingTraffic.mockResolvedValue(data({ totals: { requests: 0, bytes: 0, r2xx: 0, r3xx: 0, r4xx: 0, r5xx: 0, posts: 0, bots: 0 }, last_at: null, domains: [] }))
     renderIt()
     expect(await screen.findByText(/Aucun trafic analysé/)).toBeInTheDocument()
-    expect(screen.getByText(/agent 0\.3\.0/)).toBeInTheDocument()
+    expect(screen.getByText(/agent 0\.3\.1/)).toBeInTheDocument()
   })
 
   it('affiche domaines, URL, IP et visiteurs', async () => {

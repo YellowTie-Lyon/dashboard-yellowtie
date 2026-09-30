@@ -162,10 +162,10 @@ calcule les dérivés (`load1_per_core`, `*_used_pct`), met à jour l'état du C
 - Installation : `install.sh` (téléchargement + vérification SHA-256, configuration, cron idempotent, sauvegarde de
   la crontab). Le token est demandé en saisie masquée.
 
-### Trafic : analyse continue de l'access.log (agent 0.3.0, phase 7)
+### Trafic : analyse continue de l'access.log (agent 0.3.x, phase 7)
 
 Décision révisée : au lieu d'une analyse déclenchée à l'ouverture d'un incident (action reçue de l'API), **chaque agent
-analyse son propre `access.log` toutes les 5 minutes**. Le tableau de bord peut ainsi toujours afficher les domaines les
+analyse son propre `access.log` chaque minute**, au rythme du load. Le tableau de bord peut ainsi toujours afficher les domaines les
 plus sollicités, et le trafic de la période d'un incident est déjà là quand l'incident s'ouvre. Aucune commande n'est
 jamais reçue de l'API : la réponse du heartbeat reste inchangée.
 
@@ -174,8 +174,8 @@ Fonctionnement (bornes de charge) :
   saute directement au bon endroit. Première analyse : on part de la fin du fichier (aucun historique relu).
 - **Plafond de lecture** : 4 Mo par analyse (les plus récents ; le reste est marqué `trunc`), ramené à 1 Mo si le load 1 min
   dépasse 2 × le nombre de cœurs. Une rotation du log (inode différent) relit le nouveau fichier depuis le début.
-- **3 processus courts toutes les 5 minutes** (sous-shell, `tail`, `awk`), la priorité (`nice 19`) héritée du cron.
-  Mesure : 30 000 lignes (4 Mo) en 0,14 s de CPU, soit environ 0,05 % d'un cœur.
+- **3 processus courts par minute** (sous-shell, `tail`, `awk`), la priorité (`nice 19`) héritée du cron.
+  Mesure : 30 000 lignes (4 Mo) en 0,14 s de CPU ; à chaque minute, quelques Ko seulement sont lus en temps normal.
 - **Un seul `awk` (POSIX)** agrège et n'émet qu'un JSON borné (< 12 Ko) : jusqu'à 30 domaines (requêtes, octets,
   2xx/3xx/4xx/5xx, POST, robots), 15 URL (nom de domaine + chemin, requête réduite au nom du 1ᵉʳ paramètre, sans valeur),
   10 IP, types de visiteurs (navigateurs, Googlebot, autres robots, sans identifiant). Mémoire bornée (300 domaines,
@@ -189,7 +189,7 @@ Données (conservation courte pour ménager les quotas Supabase) :
 
 | Table | Contenu | Rétention |
 |---|---|---|
-| `traffic_5m` | par hébergement, seau de 5 min et domaine : requêtes, octets, 2xx–5xx, POST, robots | 3 jours |
+| `traffic_5m` | par hébergement, seau de 5 min et domaine (les fenêtres d'une minute s'additionnent dans leur seau) : requêtes, octets, 2xx–5xx, POST, robots | 3 jours |
 | `traffic_detail` | par fenêtre : totaux, URL, IP, visiteurs (JSON) | 3 jours |
 | `traffic_1h` | agrégat horaire par domaine | 30 jours |
 | `incidents.traffic_snapshot` | trafic pendant l'incident, figé 6 min après la clôture | avec l'incident |

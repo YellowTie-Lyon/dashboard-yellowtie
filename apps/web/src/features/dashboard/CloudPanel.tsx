@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IncidentBadge } from '../../components/IncidentBadge'
 import { Sparkline } from '../../components/Sparkline'
@@ -14,7 +15,11 @@ import { fetchTopDomains } from '../traffic/api'
 import { MetricTile, type Level } from './MetricTile'
 import { TopDomains } from './TopDomains'
 
-const WINDOW_MIN = 60
+// Par défaut 15 minutes : le classement suit la charge du moment, comme le load (mis à jour chaque minute).
+const WINDOWS = [
+  { minutes: 15, label: '15 min' },
+  { minutes: 60, label: '1 h' },
+]
 const ACCENT: Record<string, string> = {
   critical: 'border-red-500/60',
   warning: 'border-orange-500/60',
@@ -45,8 +50,10 @@ export function CloudPanel({
   openIncidents: Incident[]
   now: number
 }) {
+  const [windowMin, setWindowMin] = useState(15)
+  const windowLabel = windowMin === 15 ? 'les 15 dernières minutes' : 'la dernière heure'
   const series = useQuery({ queryKey: ['series', cloud.id, '1h'], queryFn: () => fetchSeries(cloud.id, '1h'), refetchInterval: LIVE.normal })
-  const traffic = useQuery({ queryKey: ['top-domains', cloud.id, WINDOW_MIN], queryFn: () => fetchTopDomains(cloud.id, WINDOW_MIN), refetchInterval: LIVE.slow })
+  const traffic = useQuery({ queryKey: ['top-domains', cloud.id, windowMin], queryFn: () => fetchTopDomains(cloud.id, windowMin), refetchInterval: LIVE.normal })
   const p = state?.last_point
   const stale = state ? (now - new Date(state.last_received_at).getTime()) / 1000 > cloud.offline_after_seconds : false
   const overall = status?.status ?? 'unknown'
@@ -98,7 +105,22 @@ export function CloudPanel({
       </div>
 
       <section className="mt-6 border-t border-white/10 pt-5" aria-label="Où regarder">
-        <h3 className={labelMono}>1 · Hébergements · dernière heure</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className={labelMono}>1 · Hébergements · {windowLabel}</h3>
+          <div role="group" aria-label="Période du trafic" className="flex gap-1">
+            {WINDOWS.map((w) => (
+              <button
+                key={w.minutes}
+                type="button"
+                aria-pressed={windowMin === w.minutes}
+                onClick={() => setWindowMin(w.minutes)}
+                className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] ${windowMin === w.minutes ? 'border-brand bg-brand text-slate-950' : 'border-white/15 text-slate-300 hover:bg-white/10'}`}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <ul className="mt-3 space-y-2.5">
           {hostings.map((h) => {
             const health = agentHealth(hostingStates.get(h.id)?.last_seen_at, cloud.offline_after_seconds, now)
@@ -116,7 +138,7 @@ export function CloudPanel({
                       )}
                     </span>
                     <span className="shrink-0 text-sm tabular-nums text-slate-300">
-                      {h.share ? `${formatRate(req, WINDOW_MIN)} · ${formatShare(h.share.share)}` : <span className="text-slate-500">—</span>}
+                      {h.share ? `${formatRate(req, windowMin)} · ${formatShare(h.share.share)}` : <span className="text-slate-500">—</span>}
                     </span>
                   </div>
                   <div className="mt-1 h-1 rounded-full bg-white/10">
@@ -131,10 +153,10 @@ export function CloudPanel({
         <h3 className={`mt-6 ${labelMono}`}>2 · Domaines les plus sollicités</h3>
         <div className="mt-3">
           {rows.length > 0 ? (
-            <TopDomains rows={rows} minutes={WINDOW_MIN} />
+            <TopDomains rows={rows} minutes={windowMin} />
           ) : (
             <p className="text-sm text-slate-500">
-              {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.3.0 est installé (analyse toutes les 5 minutes)."}
+              {traffic.isPending ? 'Chargement…' : "Pas encore de trafic analysé. Il apparaît dès que l'agent 0.3.1 est installé (analyse chaque minute)."}
             </p>
           )}
         </div>

@@ -9,18 +9,18 @@
 # Conçu pour consommer très peu : lecture de /proc par builtins Bash, un seul fork obligatoire
 # (curl) en fonctionnement normal, df / stat seulement toutes les 5 minutes.
 #
-#   * analyse l'access.log toutes les 5 min (lecture des seuls octets nouveaux, 2 processus, agrégats uniquement).
+#   * analyse l'access.log chaque minute (lecture des seuls octets nouveaux, 2 processus, agrégats uniquement).
 #
 # Usage : ik-agent.sh [--verbose] [--dry-run] | --version | --help
 set -u
 
-readonly AGENT_VERSION="0.3.0"
+readonly AGENT_VERSION="0.3.1"
 readonly MAX_SPOOL=30
 readonly SLOW_REFRESH_S=300     # df / stat / cœurs : toutes les 5 minutes
 readonly MAX_CPU_GAP_S=300      # au-delà, l'écart entre deux relevés rend le CPU % trompeur
 readonly MAX_DOMAINS=200        # sites remontés au plus (dossiers de ~/sites)
 readonly DOMAINS_EVERY_S=21600  # liste des sites renvoyée au moins toutes les 6 heures (ou dès qu'elle change)
-readonly TRAFFIC_EVERY_S=290    # analyse de l'access.log : une fois toutes les ~5 minutes
+readonly TRAFFIC_EVERY_S=55     # analyse de l'access.log : à chaque passage du cron (~1 minute), comme le load
 readonly TRAFFIC_MAX_BYTES=4194304   # au plus 4 Mo de log lus par analyse (les plus récents) ; 1 Mo si le serveur est chargé
 readonly MAX_TRAFFIC_PENDING=3  # fenêtres d'analyse conservées en attente d'envoi
 
@@ -256,9 +256,9 @@ save_spool() {
 
 # ---------------------------------------------------------------------------------------------------
 # Trafic : analyse de l'access.log (format « vhost ip - - [date] "MÉTHODE /chemin HTTP/x" code octets "ref" "ua" »).
-# Toutes les ~5 minutes : on ne lit que les octets ajoutés depuis la dernière analyse (décalage mémorisé), plafonnés à
+# Chaque minute : on ne lit que les octets ajoutés depuis la dernière analyse (décalage mémorisé), plafonnés à
 # TRAFFIC_MAX_BYTES ; un seul awk agrège (domaines, URL, IP, types de visiteurs, codes) et n'émet qu'un résumé JSON.
-# Aucune ligne de log ne quitte l'hébergement. Coût : 3 processus courts (subshell, tail, awk) toutes les 5 minutes.
+# Aucune ligne de log ne quitte l'hébergement. Coût : 3 processus courts (subshell, tail, awk) par minute, sur quelques Ko en temps normal.
 # ---------------------------------------------------------------------------------------------------
 read -r -d '' AWK_TRAFFIC <<'EOF' || true
 function pick(arr,   k, best, bk) { best = -1; bk = ""; for (k in arr) if (arr[k] > best) { best = arr[k]; bk = k } return bk }
@@ -426,7 +426,7 @@ main() {
     fi
   fi
 
-  # --- Trafic (toutes les ~5 min) : la fenêtre calculée est mise en attente puis envoyée avec le heartbeat -----
+  # --- Trafic (chaque minute) : la fenêtre calculée est mise en attente puis envoyée avec le heartbeat -----
   collect_traffic "$now"
   load_traffic
 

@@ -69,7 +69,7 @@ export function HostingTraffic({ hostingId, focusDomain, onFocus }: { hostingId:
           <p className={`mt-1 ${mutedText}`}>
             {t.last_at
               ? `Dernière analyse ${formatRelativeTime(t.last_at, now)}.`
-              : "L'analyse commence avec l'agent 0.3.0 (installé sur cet hébergement, elle s'exécute toutes les 5 minutes)."}
+              : "L'analyse commence avec l'agent 0.3.1 (installé sur cet hébergement, elle s'exécute chaque minute)."}
           </p>
         </div>
       )}

@@ -23,7 +23,7 @@ export function IncidentTraffic({ incidentId, open }: { incidentId: string; open
       {q.isPending && <p className={`mt-2 ${mutedText}`}>Chargement…</p>}
       {t && t.requests === 0 && (
         <p className={`mt-2 ${mutedText}`}>
-          Aucun trafic analysé sur cette période (agent 0.3.0 requis, ou détail déjà purgé pour un incident ancien non figé).
+          Aucun trafic analysé sur cette période (agent 0.3.1 requis, ou détail déjà purgé pour un incident ancien non figé).
         </p>
       )}
       {t && t.requests > 0 && (

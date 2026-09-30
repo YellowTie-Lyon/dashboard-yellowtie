@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CloudState, CloudStatusRow, CloudWithCounts, DomainTrafficRow } from '../lib/types'
@@ -234,5 +235,13 @@ describe('DashboardPage', () => {
     fetchClouds.mockResolvedValue([cloud({})])
     renderPage()
     expect(await screen.findByText(/Pas encore de trafic analysé/)).toBeInTheDocument()
+  })
+
+  it('le classement suit la charge du moment : 15 minutes par défaut, 1 h au choix', async () => {
+    fetchClouds.mockResolvedValue([cloud({})])
+    renderPage()
+    expect(await screen.findByText(/Hébergements · les 15 dernières minutes/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '1 h' }))
+    expect(await screen.findByText(/Hébergements · la dernière heure/)).toBeInTheDocument()
   })
 })

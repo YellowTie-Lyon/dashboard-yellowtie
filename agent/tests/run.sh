@@ -148,7 +148,7 @@ check "token de format invalide refusé" eq "$(curl_calls)" 0
 new_env; as_collector
 out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : aucun appel réseau" eq "$(curl_calls)" 0
-check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.3.0"
+check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.3.1"
 check "dry-run : ne remplit pas le spool" eq "$(spool_lines)" 0
 
 # --- 12. Verrou : une exécution déjà en cours empêche le chevauchement ----------------------------------
@@ -216,10 +216,10 @@ new_env; export IK_NOW=7000000; "$AGENT"
 check "première analyse : aucun historique relu" eq "$(body | jq 'has("traffic")')" false
 check "décalage initial = taille du fichier" has "$(cat "$IK_STATE_DIR/state")" "tr_off=5000"
 : >"$IK_HOME/ik-logs/access.log"; mk_log 10 >>"$IK_HOME/ik-logs/access.log"
+export IK_NOW=7000030; "$AGENT"
+check "moins de 55 s après la précédente : pas d'analyse" eq "$(body | jq 'has("traffic")')" false
 export IK_NOW=7000060; "$AGENT"
-check "moins de 5 minutes : pas d'analyse" eq "$(body | jq 'has("traffic")')" false
-export IK_NOW=7000300; "$AGENT"
-check "fenêtre de trafic envoyée" eq "$(body | jq '.traffic | length')" 1
+check "fenêtre de trafic envoyée (analyse chaque minute)" eq "$(body | jq '.traffic | length')" 1
 check "total de requêtes" eq "$(body | jq '.traffic[0].n')" 20
 check "domaines regroupés (www. retiré)" eq "$(body | jq -c '[.traffic[0].d[].h] | sort')" '["autre.fr","exemple.fr"]'
 check "erreurs 5xx comptées" eq "$(body | jq '.traffic[0].s[3]')" 10
@@ -231,7 +231,7 @@ check "URL avec paramètre sans valeur" has "$(body | jq -r '[.traffic[0].u[].p]
 check "IP active remontée" has "$(body | jq -r '[.traffic[0].i[].ip] | join(" ")')" "203.0.113.9"
 check "aucune ligne brute dans le message" hasnt "$(body)" "Mozilla"
 check "fenêtre acquittée : plus rien en attente" eq "$(grep -c . "$IK_STATE_DIR/traffic" 2>/dev/null || true)" 0
-export IK_NOW=7000600; "$AGENT"
+export IK_NOW=7000120; "$AGENT"
 check "rien de nouveau dans le log : pas de fenêtre" eq "$(body | jq 'has("traffic")')" false
 
 # Envoi échoué : la fenêtre reste en attente, renvoyée ensuite (3 au plus).

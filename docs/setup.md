@@ -185,18 +185,19 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 
 ## Phase 7 : trafic (top domaines, détail des logs) et nouvelle interface
 
-1. **Mettre à jour l'agent sur les 6 hébergements** (version 0.3.0) : relancez la commande d'installation (page de
+1. **Mettre à jour l'agent sur les 6 hébergements** (version 0.3.1) : relancez la commande d'installation (page de
    l'hébergement, voir « Mettre à jour un agent déjà installé »). À la question du token, appuyez sur **Entrée**.
-2. Attendez ~10 minutes : l'agent analyse l'`access.log` toutes les 5 minutes (la toute première analyse ne fait que se
-   positionner à la fin du fichier). Ensuite la première page affiche, pour chaque Cloud : les hébergements classés par
+2. Attendez 2 à 3 minutes : l'agent analyse l'`access.log` chaque minute, comme le load (la toute première analyse ne fait que
+   se positionner à la fin du fichier). Le classement de la première page porte par défaut sur les 15 dernières minutes
+   (bouton « 1 h » pour élargir). Ensuite la première page affiche, pour chaque Cloud : les hébergements classés par
    trafic, puis les domaines les plus sollicités.
 3. **Trouver le coupable potentiel** : bandeau du haut (quel Cloud, quel motif) → panneau du Cloud (mesures en orange /
    rouge) → hébergement le plus sollicité → domaine (clic) → page de l'hébergement : requêtes par tranche de 5 minutes,
    erreurs, URL les plus demandées (par exemple `/wp-login.php`), adresses IP, robots. Cliquer un domaine filtre les URL.
 4. La page d'un incident (performance, disque) affiche le trafic reçu pendant l'incident : hébergements et domaines
    « potentiellement impliqués ». Il est figé à la clôture, donc consultable après la purge de 3 jours.
-5. **Charge sur vos serveurs** : l'agent lit seulement les lignes ajoutées depuis 5 minutes (4 Mo maximum, 1 Mo si le
-   serveur est déjà très chargé), avec 3 processus très courts, en priorité minimale. Vérifiez à tout moment :
+5. **Charge sur vos serveurs** : l'agent lit seulement les lignes ajoutées depuis la minute précédente (4 Mo maximum, 1 Mo si
+   le serveur est déjà très chargé), avec 3 processus très courts, en priorité minimale. Vérifiez à tout moment :
    `~/.ik-monitor/ik-agent.sh --dry-run`.
 6. **Données conservées** : détail (domaines, URL, IP) 3 jours, total par domaine et par heure 30 jours. Aucune ligne de log
    brute n'est envoyée ni stockée.
