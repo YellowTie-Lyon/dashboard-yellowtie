@@ -12,6 +12,7 @@ import { formatRelativeTime } from '../lib/format'
 import { LIVE } from '../lib/live'
 import { useNow } from '../lib/useNow'
 import { SystemHealth } from '../features/health/SystemHealth'
+import { NotificationsCard } from '../features/notifications/NotificationsCard'
 
 export function SettingsPage() {
   const clouds = useQuery({ queryKey: ['clouds'], queryFn: fetchClouds, refetchInterval: LIVE.slow })
@@ -55,6 +56,8 @@ export function SettingsPage() {
         <AlertRulesEditor cloudId={null} calibrationCloudId={calibrationId} />
       </div>
 
+      <NotificationsCard />
+
       <CloseDelayCard />
 
       <SystemHealth />
@@ -77,7 +80,7 @@ export function SettingsPage() {
             </li>
           )}
           <li>
-            <strong>Notifications</strong> : aucune notification externe n'est configurée. Les statuts s'affichent dans
+            <strong>Notifications</strong> : voir la carte « Notifications Slack » ci-dessus. Les statuts s'affichent aussi dans
             YellowScope, mis à jour automatiquement.
           </li>
         </ul>

@@ -21,6 +21,7 @@ const HOUR = 60 * MIN
 export const JOBS: JobSpec[] = [
   { name: 'evaluate', label: 'Évaluation des statuts', everyMs: MIN, lateAfterMs: 5 * MIN, criticalIfMissing: true },
   { name: 'rollup', label: 'Agrégation horaire des mesures', everyMs: 5 * MIN, lateAfterMs: 20 * MIN, criticalIfMissing: true },
+  { name: 'notify', label: 'Envoi des notifications', everyMs: MIN, lateAfterMs: 10 * MIN, criticalIfMissing: false },
   { name: 'traffic', label: 'Agrégation du trafic', everyMs: 10 * MIN, lateAfterMs: 40 * MIN, criticalIfMissing: false },
   { name: 'probes', label: 'Sondes HTTP', everyMs: MIN, lateAfterMs: 10 * MIN, criticalIfMissing: false },
   { name: 'purge', label: 'Purge des mesures anciennes', everyMs: 24 * HOUR, lateAfterMs: 26 * HOUR, criticalIfMissing: false },

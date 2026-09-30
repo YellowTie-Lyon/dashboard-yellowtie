@@ -225,3 +225,11 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 - Menu **Utilisateurs** : inviter des personnes, changer les rôles, réinitialiser un 2FA, supprimer un compte (voir `docs/RUNBOOK.md`).
 - Le site est **non indexé** : `X-Robots-Tag: noindex…` sur toutes les pages, balise `meta robots` et `robots.txt` (`Disallow: /`). Aucun moteur de recherche respectueux des règles ne l'affichera.
 
+## Phase 10 : notifications Slack
+
+1. Créez l'adresse d'un **webhook entrant** Slack (les étapes sont aussi dans la carte de Réglages) : `api.slack.com/apps` > *Create New App* > *From scratch* > *Incoming Webhooks* > activer > *Add New Webhook to Workspace* > choisir le canal > copier l'adresse `https://hooks.slack.com/services/…`.
+2. **Réglages > Notifications Slack** : collez l'adresse (elle n'est **jamais réaffichée**, seuls ses 4 derniers caractères le sont), choisissez le niveau (recommandé : *Critical seulement*), le rappel (toutes les 30 minutes tant que c'est Critical), cochez **Activer**, **Enregistrer**, puis **Envoyer un message de test**.
+3. Règles : alerte à l'ouverture, l'escalade ou la rechute d'un incident qui atteint le niveau choisi ; message de **retour à la normale** à la clôture (seulement si une alerte avait été envoyée) ; rappels périodiques tant que l'incident reste Critical ; **aucune notification en mode maintenance**. Le message donne le motif (valeurs et seuils), les domaines les plus sollicités (« potentiellement impliqués ») et un lien vers l'incident.
+4. Les envois passent par **pg_net** (déjà requis pour les sondes) et **pg_cron** (chaque minute), avec 3 tentatives ; l'historique des derniers envois est dans la même carte.
+5. Migration `…0013_slack_notifications.sql` : appliquée par GitHub Actions après « push main ».
+

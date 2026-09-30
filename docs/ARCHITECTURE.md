@@ -368,7 +368,7 @@ Vocabulaire centralisé dans `apps/web/src/lib/labels.ts` : « Top trafic pendan
 « Hébergement / Domaine potentiellement impliqué ». « Activité anormale » n'apparaît que si une base de
 référence existe.
 
-## 11. Discord (abandonné à la demande du 30/09/2026)
+## 11. Notifications (Slack, phase 10) ; Discord abandonné le 30/09/2026
 
 Les notifications Discord ne sont plus prévues. Le mécanisme d'*outbox* ci-dessous reste la conception de référence si un canal
 externe (Discord, e-mail, push) est un jour rajouté ; rien dans le code actuel n'en dépend.
@@ -401,7 +401,8 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 6 | Incidents et historique (notifications externes abandonnées à la demande) : cycle de vie, chronologie, pics, note, courbes de la période, bandes d'incident sur les graphiques | Fait |
 | 7 | Diagnostic de trafic : agent 0.3.x (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | Fait |
 | 8 | Exploitation : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | Fait |
-| **9** | **Utilisateurs et sécurité d'accès** : gestion des utilisateurs sur le site, double authentification TOTP obligatoire (imposée par la base), non-indexation | **En cours de validation** |
+| 9 | Utilisateurs et sécurité d'accès : gestion des utilisateurs sur le site, double authentification TOTP obligatoire (imposée par la base), non-indexation | Fait |
+| **10** | **Notifications Slack** : alertes d'incident, retour à la normale, rappels, test et historique dans Réglages | **En cours de validation** |
 
 **Exploitation (phase 8)** : `get_storage_stats()` (SECURITY DEFINER, membres seulement) renvoie la taille de la base et des 10
 plus grosses tables ; Réglages affiche le quota (500 Mo en offre Free), l'état des six tâches planifiées (`evaluate`, `rollup`,
@@ -423,6 +424,16 @@ appelant `list_workspace_members()` avec le JWT de l'appelant ; validations dans
 (`record_user_event`, réservée à `service_role`). Liens d'invitation et de réinitialisation : session ouverte par le lien, puis page
 `/bienvenue` (choix du mot de passe, 12 caractères minimum) puis création du 2FA. Non-indexation : `X-Robots-Tag: noindex, nofollow,
 noarchive, nosnippet, noimageindex` (Netlify), balise `meta robots` et `robots.txt` (`Disallow: /`).
+
+**Notifications Slack (phase 10)** : `notification_settings` (une ligne par workspace ; l'adresse du webhook est protégée par des droits de
+**colonne**, illisible par tout client, avec `has_webhook` et `webhook_hint` (4 derniers caractères) pour l'interface) ; `notification_outbox`
+(file et historique). Un déclencheur sur `incident_events` compose le message (blocs Slack : niveau, raisons avec valeurs et seuils, 3 domaines les
+plus sollicités sur 15 min « potentiellement impliqués », lien vers l'incident) et le met en file s'il atteint le niveau choisi
+(`opened`/`escalated`/`relapse`) ; la clôture ne produit un « retour à la normale » que si une alerte avait été envoyée ; les rappels sont créés
+par `dispatch_notifications()` (pg_cron, chaque minute), qui envoie aussi via pg_net (`notify_http_post` / `notify_http_result`, seule dépendance),
+lit les réponses (2xx = envoyé), réessaie 3 fois (2 puis 4 min) puis marque « failed » avec la cause, et purge à 14 jours. L'adresse doit
+correspondre à `https://hooks.slack.com/services/…` (contrainte en base : aucun appel vers un hôte arbitraire). Une erreur de notification
+n'empêche jamais l'enregistrement d'un incident. RPC réservées aux propriétaires en aal2 : `save_notification_settings`, `send_test_notification`.
 
 ## 13. Évolutions prévues (non développées au MVP)
 

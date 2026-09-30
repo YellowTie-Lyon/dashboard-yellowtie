@@ -14,7 +14,7 @@ vi.mock('./api', () => ({ fetchStorageStats: () => fetchStorageStats() }))
 
 const MB = 1024 * 1024
 const recent = (name: string): JobState => ({ name, last_run_at: new Date().toISOString(), detail: {} })
-const healthyJobs = ['evaluate', 'rollup', 'traffic', 'probes', 'purge', 'traffic_purge'].map(recent)
+const healthyJobs = ['evaluate', 'rollup', 'notify', 'traffic', 'probes', 'purge', 'traffic_purge'].map(recent)
 
 function wrap(ui: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -66,7 +66,7 @@ describe('SystemHealth', () => {
     wrap(<SystemHealth />)
     expect(await screen.findByText('metrics')).toBeInTheDocument()
     expect(screen.getByText('Évaluation des statuts')).toBeInTheDocument()
-    expect(screen.getAllByText('En marche')).toHaveLength(6)
+    expect(screen.getAllByText('En marche')).toHaveLength(7)
     expect(screen.getByRole('progressbar', { name: 'Stockage utilisé' })).toHaveAttribute('aria-valuenow', '20')
   })
 

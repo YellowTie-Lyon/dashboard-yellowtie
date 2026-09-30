@@ -47,6 +47,15 @@ Réglages > **Tâches planifiées** : une ligne « En retard » ou « Pas encore
 1. Supabase > Database > Extensions > activez **pg_cron** (et **pg_net** pour les sondes).
 2. Rejouez la planification : GitHub > Actions > « Déployer les migrations » > *Re-run all jobs*, ou dites-le-moi pour que je le fasse.
 
+### Les notifications Slack n'arrivent pas
+Réglages > **Notifications Slack** > « Derniers envois » : chaque message est **Envoyé**, **En attente** ou **Échec** (avec la cause).
+- **Aucun envoi listé** : les notifications sont désactivées, ou le niveau minimum est trop haut (Critical seulement), ou l'incident n'a pas atteint ce niveau.
+- **Échec « HTTP 404 » ou « HTTP 410 »** : l'adresse du webhook a été supprimée ou révoquée côté Slack ; créez-en une nouvelle (Slack > votre application > Incoming Webhooks) et remplacez-la.
+- **Échec « pas de réponse » ou erreur réseau** : l'extension **pg_net** n'est pas activée (Supabase > Database > Extensions), ou Slack est momentanément indisponible (3 tentatives sont faites).
+- **Tâche « Envoi des notifications » en retard** (Réglages > Tâches planifiées) : pg_cron n'est pas actif (voir plus haut).
+- Bouton **Envoyer un message de test** : vérifie toute la chaîne en quelques secondes.
+- Une adresse de webhook divulguée doit être **supprimée puis recréée** : quiconque la possède peut écrire dans votre canal.
+
 ### Le stockage approche du quota (Réglages > Stockage de la base)
 1. Orange à 70 %, rouge à 90 % du quota Free (500 Mo).
 2. Réduire les conservations : détail du trafic 3 jours, mesures 35 jours. Dans Supabase > SQL Editor :
