@@ -402,6 +402,7 @@ sans affirmer de cause ; le diagnostic de trafic arrive en phase 7.
 | 7 | Diagnostic de trafic : agent 0.3.x (analyse d'access.log bornée), top domaines, page trafic d'un hébergement, trafic des incidents ; refonte de l'interface (charte noir et jaune) | Fait |
 | 8 | Exploitation : santé du système (tâches planifiées, quota de stockage), interface responsive (mobile, tablette) et mode TV, mode d'emploi `RUNBOOK.md` | Fait |
 | **9** | **Utilisateurs et sécurité d'accès** : gestion des utilisateurs sur le site, double authentification TOTP obligatoire (imposée par la base), non-indexation | **En cours de validation** |
+| **9** | **Utilisateurs et sécurité d'accès** : gestion des utilisateurs sur le site, double authentification TOTP obligatoire (imposée par la base), non-indexation | **En cours de validation** |
 
 **Exploitation (phase 8)** : `get_storage_stats()` (SECURITY DEFINER, membres seulement) renvoie la taille de la base et des 10
 plus grosses tables ; Réglages affiche le quota (500 Mo en offre Free), l'état des six tâches planifiées (`evaluate`, `rollup`,
