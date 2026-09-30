@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ErrorNote } from '../components/ErrorNote'
 import { btnPrimary } from '../components/ui'
 import { fetchCloseMinutes, updateCloseMinutes } from '../features/incidents/api'
@@ -42,7 +43,7 @@ export function SettingsPage() {
           </div>
           {(clouds.data?.length ?? 0) > 0 && (
             <label className="text-sm font-medium">
-              Mesures de référence
+              Mesures de référence (affichage seulement)
               <select value={calibrationId ?? ''} onChange={(e) => setSelected(e.target.value)} className={`${input} mt-1 w-auto`}>
                 {clouds.data?.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -54,6 +55,24 @@ export function SettingsPage() {
           )}
         </div>
         <AlertRulesEditor cloudId={null} calibrationCloudId={calibrationId} />
+        {(clouds.data?.length ?? 0) > 0 && (
+          <div className={card}>
+            <h3 className="font-semibold">Seuils différents pour un Server Cloud</h3>
+            <p className={`mt-1 ${mutedText}`}>
+              Le menu « Mesures de référence » ne change que les statistiques affichées, pas les seuils. Pour donner à un Cloud ses propres
+              seuils, ouvrez sa page puis « Seuils d'alerte de ce Server Cloud ».
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {clouds.data?.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/clouds/${c.id}`} className="inline-flex rounded-full border border-white/15 px-3 py-1 text-sm font-medium hover:bg-white/10">
+                    {c.name} →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <NotificationsCard />
