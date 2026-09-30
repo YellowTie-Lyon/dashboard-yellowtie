@@ -43,7 +43,7 @@ export interface Site {
   workspace_id: string
   web_hosting_id: string
   domain: string
-  source: 'manual' | 'discovered'
+  source: 'manual' | 'discovered' | 'log'
   is_verified: boolean
   is_active: boolean
   first_seen_at: string | null

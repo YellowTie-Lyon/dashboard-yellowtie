@@ -97,8 +97,10 @@ Une fois connecté (rôle propriétaire) :
    Cloud devient automatiquement son **collecteur système** ; vous pouvez en désigner un autre à tout moment.
 3. Ouvrez l'hébergement : **Générer le token**. Il n'est affiché **qu'une seule fois** : copiez-le tout de suite
    dans votre gestionnaire de mots de passe. Il servira à installer l'agent (phase 3).
-4. **Importer des domaines** : collez la liste des sites de l'hébergement (un par ligne). Utilisez le nom tel
-   qu'il apparaît dans le premier champ de `~/ik-logs/access.log` (avec `www.` si c'est le cas).
+4. **Domaines** : l'agent (version 0.2.0 et suivantes) détecte tout seul les sites à partir du dossier `~/sites` de
+   l'hébergement et les remonte (au plus toutes les 6 h). Le bouton **Importer des domaines** reste disponible pour
+   compléter à la main : utilisez alors le nom tel qu'il apparaît dans le premier champ de `~/ik-logs/access.log`
+   (avec `www.` si c'est le cas).
 5. Optionnel : renseignez l'URL de sonde (HTTPS) de l'hébergement. Un petit fichier statique est conseillé.
 
 Les migrations de `main` sont appliquées automatiquement par le workflow *Déployer les migrations* (une
@@ -127,3 +129,9 @@ Désinstaller : `bash ik-install.sh --uninstall` (retire la ligne de cron et le 
 
 **Mode observation** : tant que la phase 5 n'est pas livrée, aucun statut ni alerte n'est calculé. Les valeurs
 servent à les comparer avec la console Infomaniak avant de fixer les seuils.
+
+### Mettre à jour un agent déjà installé
+
+Relancez simplement les deux lignes de la commande d'installation (page de l'hébergement > « Régénérer » n'est
+**pas** nécessaire) : l'installeur télécharge la dernière version, vérifie sa somme de contrôle et remplace
+l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actuel.

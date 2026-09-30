@@ -12,10 +12,12 @@
 # Usage : ik-agent.sh [--verbose] [--dry-run] | --version | --help
 set -u
 
-readonly AGENT_VERSION="0.1.1"
+readonly AGENT_VERSION="0.2.0"
 readonly MAX_SPOOL=30
 readonly SLOW_REFRESH_S=300     # df / stat / cœurs : toutes les 5 minutes
 readonly MAX_CPU_GAP_S=300      # au-delà, l'écart entre deux relevés rend le CPU % trompeur
+readonly MAX_DOMAINS=200        # sites remontés au plus (dossiers de ~/sites)
+readonly DOMAINS_EVERY_S=21600  # liste des sites renvoyée au moins toutes les 6 heures (ou dès qu'elle change)
 
 export LC_ALL=C
 export PATH="${PATH:-/usr/bin:/bin}:/usr/local/bin:/usr/bin:/bin"
@@ -35,7 +37,7 @@ LOCK="$DIR/lock"
 
 VERBOSE=0
 DRYRUN=0
-IK_API_URL="" IK_API_KEY="" IK_TOKEN="" IK_LOG_PATH=""
+IK_API_URL="" IK_API_KEY="" IK_TOKEN="" IK_LOG_PATH="" IK_SITES_DIR=""
 declare -A S=()
 declare -a spool=()
 
@@ -91,6 +93,7 @@ load_config() {
       IK_API_KEY) IK_API_KEY=$v ;;
       IK_TOKEN) IK_TOKEN=$v ;;
       IK_LOG_PATH) IK_LOG_PATH=$v ;;
+      IK_SITES_DIR) IK_SITES_DIR=$v ;;
     esac
   done <"$CONFIG"
   IK_API_URL="${IK_API_URL%/}"
@@ -99,6 +102,8 @@ load_config() {
   if [[ ! $IK_TOKEN =~ ^ikh_[0-9a-f]{12}_[0-9a-f]{64}$ ]]; then note_error "IK_TOKEN invalide"; return 1; fi
   IK_LOG_PATH="${IK_LOG_PATH:-$BASE/ik-logs/access.log}"
   IK_LOG_PATH="${IK_LOG_PATH/#\~/$BASE}"
+  IK_SITES_DIR="${IK_SITES_DIR:-$BASE/sites}"
+  IK_SITES_DIR="${IK_SITES_DIR/#\~/$BASE}"
   return 0
 }
 
@@ -208,6 +213,25 @@ build_point() {
 }
 
 # ---------------------------------------------------------------------------------------------------
+# Sites de l'hébergement : noms des dossiers de ~/sites qui ressemblent à un nom de domaine.
+# Lecture par « glob » Bash : aucun processus lancé, aucun fichier ouvert.
+# ---------------------------------------------------------------------------------------------------
+DOMAINS_JSON="" DOMAINS_N=0
+collect_domains() {
+  local p name lower re='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$'
+  DOMAINS_JSON=""; DOMAINS_N=0
+  shopt -s nullglob
+  for p in "$IK_SITES_DIR"/*/; do
+    name=${p%/}; name=${name##*/}; lower=${name,,}
+    if ((${#lower} > 253)) || [[ ! $lower =~ $re ]]; then continue; fi
+    ((DOMAINS_N >= MAX_DOMAINS)) && break
+    DOMAINS_JSON+="${DOMAINS_JSON:+,}\"$lower\""
+    ((DOMAINS_N++))
+  done
+  shopt -u nullglob
+}
+
+# ---------------------------------------------------------------------------------------------------
 # Spool : relevés en attente d'envoi (30 max, les plus anciens sont abandonnés)
 # ---------------------------------------------------------------------------------------------------
 load_spool() {
@@ -225,7 +249,7 @@ save_spool() {
 }
 
 main() {
-  local now body points last_error backlog hostname="${HOSTNAME:-unknown}" code resp err api_msg
+  local now body points last_error backlog hostname="${HOSTNAME:-unknown}" code resp err api_msg send_domains=0 dom_last
 
   printf -v now '%(%s)T' -1
   [[ ${IK_NOW:-} =~ ^[0-9]+$ ]] && now=$IK_NOW
@@ -260,8 +284,19 @@ main() {
   if [[ ${S[collector]:-0} != 1 ]]; then refresh_log_only "$now"; fi
   last_error="null"; [[ -n ${S[last_error]:-} ]] && last_error="\"${S[last_error]}\""
   if ((DRYRUN)) && [[ ${S[collector]:-0} == 1 && -n $POINT ]]; then points=$POINT; else join_spool; points=$JOINED; fi
+  # Liste des sites : à l'installation, quand elle change, puis toutes les 6 h ; jamais avec un gros spool (taille du message).
+  send_domains=0
+  if [[ -d $IK_SITES_DIR ]]; then
+    collect_domains
+    if ((DOMAINS_N > 0 && ${#spool[@]} <= 5)); then
+      dom_last=${S[dom_ts]:-0}; [[ $dom_last =~ ^[0-9]+$ ]] || dom_last=0
+      if [[ ${S[dom_n]:-} != "$DOMAINS_N" ]] || ((now - dom_last >= DOMAINS_EVERY_S || now < dom_last)); then send_domains=1; fi
+    fi
+  fi
   printf -v body '{"v":1,"agent_version":"%s","hostname":"%s","agent":{"backlog":%d,"last_error":%s,"log":{"size":%d,"inode":%d}},"points":[%s]}' \
     "$AGENT_VERSION" "$hostname" "$backlog" "$last_error" "${S[log_size]:-0}" "${S[log_inode]:-0}" "$points"
+
+  if ((send_domains)); then body="${body%\}},\"domains\":[$DOMAINS_JSON]}"; fi
 
   if ((DRYRUN)); then
     printf '%s\n' "$body"
@@ -284,6 +319,7 @@ main() {
     200)
       if [[ $resp =~ \"collector\"[[:space:]]*:[[:space:]]*true ]]; then S[collector]=1; else S[collector]=0; fi
       spool=()
+      if ((send_domains)); then S[dom_ts]=$now; S[dom_n]=$DOMAINS_N; fi
       # Actions : liste blanche, non implémentée dans cette version (analyse de logs en phase 7).
       if [[ $resp =~ \"type\"[[:space:]]*:[[:space:]]*\" ]]; then note_error "action recue non supportee par cette version de l agent ($AGENT_VERSION)"; else ERR_NOW=""; fi
       ;;

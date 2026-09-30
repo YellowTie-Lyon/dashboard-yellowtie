@@ -148,7 +148,7 @@ check "token de format invalide refusé" eq "$(curl_calls)" 0
 new_env; as_collector
 out="$("$AGENT" --dry-run | tail -1)"
 check "dry-run : aucun appel réseau" eq "$(curl_calls)" 0
-check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.1.1"
+check "dry-run : JSON valide" eq "$(printf '%s' "$out" | jq -r '.agent_version')" "0.2.0"
 check "dry-run : ne remplit pas le spool" eq "$(spool_lines)" 0
 
 # --- 12. Verrou : une exécution déjà en cours empêche le chevauchement ----------------------------------
@@ -172,6 +172,37 @@ check "avertissement journalisé" has "$(cat "$IK_STATE_DIR/agent.log")" "inutil
 # --- 14. Fichiers sensibles en 600 / dossier en 700 -----------------------------------------------------
 new_env; as_collector; "$AGENT"
 check "en-têtes (token) non lisibles par les autres" eq "$(stat -c '%a' "$IK_STATE_DIR/headers")" 600
+
+# --- 15. Découverte des sites : noms des dossiers de ~/sites ------------------------------------------------
+new_env; export MOCK_BODY='{"ok": true, "collector": false, "actions": []}'
+mkdir -p "$IK_HOME/sites"/{Exemple.FR,blog.exemple.fr,default,tmp,192.168.0.1,a_b.fr,-x.fr} "$IK_HOME/sites/plus-tard.com"
+: >"$IK_HOME/sites/readme.txt"
+export IK_NOW=6000000; "$AGENT"
+check "les dossiers qui ressemblent à des domaines sont remontés (minuscules, bruit écarté)" \
+  eq "$(body | jq -c '.domains | sort')" '["blog.exemple.fr","exemple.fr","plus-tard.com"]'
+check "un fichier ordinaire n'est pas un site" eq "$(body | jq '.domains | index("readme.txt")')" null
+export IK_NOW=6000060; "$AGENT"
+check "liste inchangée : pas renvoyée à la minute suivante" eq "$(body | jq 'has("domains")')" false
+mkdir -p "$IK_HOME/sites/nouveau-site.fr"; export IK_NOW=6000120; "$AGENT"
+check "un nouveau dossier déclenche un renvoi immédiat" eq "$(body | jq '.domains | length')" 4
+export IK_NOW=$((6000120 + 21600 + 60)); "$AGENT"
+check "liste renvoyée au moins toutes les 6 h" eq "$(body | jq '.domains | length')" 4
+
+new_env; mkdir -p "$IK_HOME/sites/exemple.fr"; export MOCK_HTTP_CODE=500 IK_NOW=6100000
+"$AGENT"; export IK_NOW=6100060; "$AGENT"
+check "envoi échoué : la liste des sites est renvoyée à la minute suivante" eq "$(body | jq '.domains | length')" 1
+
+new_env; as_collector; mkdir -p "$IK_HOME/sites/exemple.fr"; export MOCK_HTTP_CODE=000 IK_NOW=6200000
+for i in $(seq 1 8); do IK_NOW=$((6200000 + i * 60)) "$AGENT"; done
+check "spool de plus de 5 relevés : la liste des sites n'est pas jointe" eq "$(body | jq 'has("domains")')" false
+
+new_env; "$AGENT"
+check "sans dossier sites : aucune clé « domains »" eq "$(body | jq 'has("domains")')" false
+new_env; mkdir -p "$IK_HOME/sites/exemple.fr"
+out="$("$AGENT" --dry-run | tail -1)"
+check "dry-run : la liste des sites est visible" eq "$(printf '%s' "$out" | jq -c '.domains')" '["exemple.fr"]'
+new_env; for i in $(seq 1 230); do mkdir -p "$IK_HOME/sites/site$i.fr"; done; "$AGENT"
+check "plafond de 200 sites par envoi" eq "$(body | jq '.domains | length')" 200
 
 echo
 echo "Résultat : $PASS réussis, $FAIL échoués"

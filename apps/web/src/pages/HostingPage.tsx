@@ -267,8 +267,9 @@ export function HostingPage() {
           <div>
             <h2 className="font-semibold">Sites / domaines</h2>
             <p className={mutedText}>
-              {sites.data?.length ?? 0} domaine{(sites.data?.length ?? 0) > 1 ? 's' : ''}. Saisissez-les tels qu'ils
-              apparaissent dans les logs (avec « www. » si c'est le cas).
+              {sites.data?.length ?? 0} domaine{(sites.data?.length ?? 0) > 1 ? 's' : ''}. Détectés automatiquement par
+              l'agent à partir du dossier ~/sites de l'hébergement (au plus toutes les 6 h) ; l'import manuel permet
+              de compléter (saisissez alors le nom tel qu'il apparaît dans les logs, avec « www. » si besoin).
             </p>
           </div>
           {canWrite && (
@@ -300,6 +301,18 @@ export function HostingPage() {
               <li key={s.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className={`font-mono ${s.is_active ? '' : 'text-slate-400 line-through'}`}>{s.domain}</span>
                 <span className="flex items-center gap-3">
+                  {s.source === 'discovered' && (
+                    <span className="text-xs text-slate-400" title="Détecté dans le dossier ~/sites de l'hébergement">
+                      auto
+                    </span>
+                  )}
+                  {s.source === 'discovered' &&
+                    s.last_seen_at &&
+                    now - new Date(s.last_seen_at).getTime() > 48 * 3600 * 1000 && (
+                      <span className="text-xs text-amber-700">
+                        absent de ~/sites depuis {formatRelativeTime(s.last_seen_at, now).replace('il y a ', '')}
+                      </span>
+                    )}
                   {!s.is_verified && <span className="text-xs text-amber-700">non vérifié</span>}
                   {canWrite && (
                     <>

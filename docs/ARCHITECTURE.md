@@ -134,6 +134,15 @@ ancien hash accepté pendant la période de grâce d'une rotation). Contrôles, 
 | Corps non objet, > 16 Ko, `v` ≠ 1, `points` non tableau ou > 30 | 400 |
 | Point invalide (bornes, `used ≤ total`, horodatage hors [now − 24 h ; now + 2 min]…) | point **ignoré** et compté dans `rejected`, sans bloquer les autres |
 
+**Découverte des sites (agent 0.2.0)** : chaque agent peut joindre `"domains": ["exemple.fr", …]` (≤ 200), la liste des
+dossiers de `~/sites` dont le nom ressemble à un nom de domaine (lecture par glob Bash, aucun processus). Envoyée à
+l'installation, dès que le nombre de dossiers change, puis au moins toutes les 6 h, jamais avec un gros spool. Le
+serveur normalise (minuscules), valide (mêmes règles que l'import manuel), crée les sites `source = 'discovered'`,
+**vérifiés** (dossiers du client lui-même), ou rafraîchit `last_seen_at` ; il ne supprime jamais rien (un site absent
+de `~/sites` depuis plus de 48 h est signalé dans l'interface). Plafond de 500 sites par hébergement. Les domaines
+qui seront vus dans les access.log (phase 7) auront `source = 'log'` et resteront **non vérifiés** (un scanner peut
+envoyer des `Host:` arbitraires).
+
 Les relevés sont idempotents (clé primaire (Cloud, `ts`)) : rejouer un spool ne crée pas de doublon. Le serveur
 calcule les dérivés (`load1_per_core`, `*_used_pct`), met à jour l'état du Cloud et de l'hébergement, apprend le
 `hostname` et le nombre de cœurs du Cloud, puis répond :
