@@ -91,6 +91,13 @@ Menu **Utilisateurs** (propriétaires seulement) :
 - **Supprimer** : retire le compte et tous ses accès. Vous ne pouvez pas vous supprimer vous-même.
 - Une invitation qui n'arrive pas : vérifiez les indésirables, puis Supabase > Authentication > Logs. L'offre Free limite le nombre d'e-mails envoyés par heure ; un serveur SMTP personnel (Project Settings > Authentication > SMTP) lève la limite.
 
+### J'ai supprimé mon compte (ou le dernier propriétaire) dans Supabase
+Les données restent intactes ; seule l'appartenance au workspace disparaît. Depuis la migration `…0012`, la base **refuse** de retirer le dernier propriétaire (promouvez d'abord un autre propriétaire dans le menu Utilisateurs). Si le cas s'est produit avant :
+1. Supabase > Authentication > Users > *Add user > Create new user* (cochez *Auto Confirm User*).
+2. SQL Editor :
+   `insert into public.workspace_members (workspace_id, user_id, role) select w.id, u.id, 'owner' from public.workspaces w, auth.users u where u.email = 'votre@email' on conflict do nothing;`
+3. Connectez-vous : le double facteur sera à recréer (supprimez l'ancienne entrée de l'application d'authentification).
+
 ### Connexion et double authentification (2FA)
 - Chaque connexion demande : e-mail + mot de passe, puis le code à 6 chiffres de l'application d'authentification. La base **refuse toute donnée** à une session sans code validé.
 - **Mot de passe oublié** : lien sur la page de connexion (l'e-mail contient un lien vers la page « Choisissez votre mot de passe »).
