@@ -93,10 +93,10 @@ export function CloudPanel({
       )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricTile label="Load" value={formatLoad(p?.load1)} fill={p ? p.load1_per_core * 100 : null} level={levelFor(status, ['load1_per_core', 'load1', 'load5', 'load5_per_core'])} stale={stale} />
-        <MetricTile label="CPU" value={formatPercent(p?.cpu_pct)} fill={p?.cpu_pct ?? null} level={levelFor(status, ['cpu_pct'])} stale={stale} />
-        <MetricTile label="RAM" value={formatPercent(p?.mem_used_pct)} fill={p?.mem_used_pct ?? null} level={levelFor(status, ['mem_used_pct', 'swap_used_pct'])} stale={stale} />
-        <MetricTile label="Disque" value={formatPercent(p?.disk_used_pct)} fill={p?.disk_used_pct ?? null} level={levelFor(status, ['disk_used_pct'])} stale={stale} />
+        <MetricTile label="Load" icon="load" value={formatLoad(p?.load1)} fill={p ? p.load1_per_core * 100 : null} level={levelFor(status, ['load1_per_core', 'load1', 'load5', 'load5_per_core'])} stale={stale} />
+        <MetricTile label="CPU" icon="cpu" value={formatPercent(p?.cpu_pct)} fill={p?.cpu_pct ?? null} level={levelFor(status, ['cpu_pct'])} stale={stale} />
+        <MetricTile label="RAM" icon="ram" value={formatPercent(p?.mem_used_pct)} fill={p?.mem_used_pct ?? null} level={levelFor(status, ['mem_used_pct', 'swap_used_pct'])} stale={stale} />
+        <MetricTile label="Disque" icon="disk" value={formatPercent(p?.disk_used_pct)} fill={p?.disk_used_pct ?? null} level={levelFor(status, ['disk_used_pct'])} stale={stale} />
       </div>
 
       <div className="mt-4">
