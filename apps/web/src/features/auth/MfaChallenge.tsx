@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ErrorNote } from '../../components/ErrorNote'
 import { btnPrimary, input } from '../../components/ui'
+import { mfaErrorMessage } from '../../lib/errors'
 import { getSupabase } from '../../lib/supabase'
 import { AuthCard } from './AuthCard'
 import { useAuth } from './auth-context'
@@ -31,7 +32,7 @@ export function MfaChallenge() {
     setError(null)
     const { error: verifyError } = await getSupabase().auth.mfa.challengeAndVerify({ factorId, code: code.trim() })
     if (verifyError) {
-      setError(new Error('Code incorrect ou expiré. Un nouveau code apparaît toutes les 30 secondes.'))
+      setError(new Error(mfaErrorMessage(verifyError)))
       setCode('')
       setBusy(false)
       return

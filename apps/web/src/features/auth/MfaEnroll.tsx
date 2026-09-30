@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ErrorNote } from '../../components/ErrorNote'
 import { btnPrimary, input } from '../../components/ui'
+import { mfaErrorMessage } from '../../lib/errors'
 import { getSupabase } from '../../lib/supabase'
 import { AuthCard } from './AuthCard'
 import { useAuth } from './auth-context'
@@ -28,7 +29,7 @@ export function MfaEnroll() {
       // Une inscription abandonnée laisse un facteur « non vérifié » qui bloquerait la suivante : on le retire.
       const { data: existing } = await auth.mfa.listFactors()
       for (const f of existing?.all ?? []) if (f.status === 'unverified') await auth.mfa.unenroll({ factorId: f.id })
-      const { data, error: enrollError } = await auth.mfa.enroll({ factorType: 'totp', friendlyName: `YellowScope ${new Date().toISOString().slice(0, 10)}` })
+      const { data, error: enrollError } = await auth.mfa.enroll({ factorType: 'totp', issuer: 'YellowScope', friendlyName: `YellowScope ${new Date().toISOString().slice(0, 10)}` })
       if (enrollError || !data) return setError(enrollError ?? new Error("Impossible de créer le double facteur."))
       setEnrollment({ factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret })
     })()
@@ -41,7 +42,7 @@ export function MfaEnroll() {
     setError(null)
     const { error: verifyError } = await getSupabase().auth.mfa.challengeAndVerify({ factorId: enrollment.factorId, code: code.trim() })
     if (verifyError) {
-      setError(new Error('Code incorrect ou expiré. Vérifiez l’heure de votre téléphone et réessayez.'))
+      setError(new Error(mfaErrorMessage(verifyError)))
       setCode('')
       setBusy(false)
       return

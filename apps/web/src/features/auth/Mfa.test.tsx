@@ -41,7 +41,7 @@ describe('MfaEnroll', () => {
     withAuth(<MfaEnroll />)
     expect(await screen.findByAltText(/QR code/)).toBeInTheDocument()
     expect(screen.getByText('ABCDSECRET')).toBeInTheDocument()
-    expect(mfa.enroll).toHaveBeenCalledWith(expect.objectContaining({ factorType: 'totp' }))
+    expect(mfa.enroll).toHaveBeenCalledWith(expect.objectContaining({ factorType: 'totp', issuer: 'YellowScope' }))
 
     const button = screen.getByRole('button', { name: /Activer et continuer/ })
     expect(button).toBeDisabled()
@@ -65,7 +65,7 @@ describe('MfaEnroll', () => {
   it('un code refusé affiche une erreur et ne débloque rien', async () => {
     mfa.listFactors.mockResolvedValue({ data: { all: [] }, error: null })
     mfa.enroll.mockResolvedValue({ data: { id: 'f1', totp: { qr_code: 'x', secret: 'S' } }, error: null })
-    mfa.challengeAndVerify.mockResolvedValue({ data: null, error: { message: 'invalid' } })
+    mfa.challengeAndVerify.mockResolvedValue({ data: null, error: { code: 'mfa_verification_failed', message: 'invalid' } })
     withAuth(<MfaEnroll />)
     await screen.findByAltText(/QR code/)
     await userEvent.type(screen.getByLabelText(/Code à 6 chiffres/), '000000')
@@ -130,5 +130,18 @@ describe('RequireAuth et double authentification', () => {
   it('affiche le contenu une fois le double facteur validé', () => {
     gate('ok')
     expect(screen.getByText('contenu protégé')).toBeInTheDocument()
+  })
+})
+
+describe('erreurs de vérification', () => {
+  it('explique un TOTP désactivé sur le projet plutôt que de parler d’un mauvais code', async () => {
+    mfa.listFactors.mockResolvedValue({ data: { all: [] }, error: null })
+    mfa.enroll.mockResolvedValue({ data: { id: 'f1', totp: { qr_code: 'x', secret: 'S' } }, error: null })
+    mfa.challengeAndVerify.mockResolvedValue({ data: null, error: { code: 'mfa_totp_verify_not_enabled', message: 'x' } })
+    withAuth(<MfaEnroll />)
+    await screen.findByAltText(/QR code/)
+    await userEvent.type(screen.getByLabelText(/Code à 6 chiffres/), '123456')
+    await userEvent.click(screen.getByRole('button', { name: /Activer et continuer/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/n’est pas activée sur le projet Supabase/)
   })
 })
