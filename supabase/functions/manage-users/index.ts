@@ -54,18 +54,36 @@ Deno.serve(async (req) => {
   const log = (action: string, target: string | null, details: Record<string, unknown>) =>
     admin.rpc('record_user_event', { _workspace_id: workspaceId, _actor: actorId, _action: action, _target: target, _details: details })
 
-  if (cmd.action === 'invite') {
+  if (cmd.action === 'invite' || cmd.action === 'create') {
     const check = checkInvite(members, cmd.email)
     if (!check.ok) return json({ error: check.error }, check.status, origin)
-    if (!origin) return json({ error: "Origine de la requête invalide (HTTPS requis)." }, 400, origin)
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(cmd.email, { redirectTo: `${origin}/bienvenue` })
-    if (error || !data.user) {
-      const m = inviteErrorMessage(error as { code?: string; message?: string } | null)
-      return json({ error: m.error }, m.status, origin)
+
+    let created: { id: string } | null = null
+    if (cmd.action === 'invite') {
+      if (!origin) return json({ error: "Origine de la requête invalide (HTTPS requis)." }, 400, origin)
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(cmd.email, { redirectTo: `${origin}/bienvenue` })
+      if (error || !data.user) {
+        const m = inviteErrorMessage(error as { code?: string; message?: string } | null)
+        return json({ error: m.error }, m.status, origin)
+      }
+      created = data.user
+    } else {
+      // Création directe : compte confirmé d'emblée (aucun e-mail), mot de passe choisi par le propriétaire.
+      const { data, error } = await admin.auth.admin.createUser({ email: cmd.email, password: cmd.password, email_confirm: true })
+      if (error || !data.user) {
+        const m = inviteErrorMessage(error as { code?: string; message?: string } | null)
+        return json({ error: m.error }, m.status, origin)
+      }
+      created = data.user
     }
-    const { error: memberError } = await admin.from('workspace_members').insert({ workspace_id: workspaceId, user_id: data.user.id, role: cmd.role })
-    if (memberError) return json({ error: "Compte créé mais rattachement au workspace impossible : réessayez ou contactez l'administrateur." }, 500, origin)
-    await log('user.invited', data.user.id, { email: cmd.email, role: cmd.role })
+
+    const { error: memberError } = await admin.from('workspace_members').insert({ workspace_id: workspaceId, user_id: created.id, role: cmd.role })
+    if (memberError) {
+      // Aucun compte orphelin : si le rattachement échoue, le compte tout juste créé est supprimé.
+      await admin.auth.admin.deleteUser(created.id)
+      return json({ error: "Création annulée : rattachement au workspace impossible. Réessayez." }, 500, origin)
+    }
+    await log(cmd.action === 'invite' ? 'user.invited' : 'user.created', created.id, { email: cmd.email, role: cmd.role })
     return json({ ok: true }, 200, origin)
   }
 

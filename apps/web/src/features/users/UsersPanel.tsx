@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ErrorNote } from '../../components/ErrorNote'
 import { btn, btnDanger, btnPrimary, card, input, labelMono, mutedText } from '../../components/ui'
 import { formatRelativeTime } from '../../lib/format'
+import { generatePassword } from '../../lib/password'
 import type { WorkspaceMember, WorkspaceRole } from '../../lib/types'
 import { useNow } from '../../lib/useNow'
 import { fetchMembers, manageUsers, setMemberRole } from './api'
@@ -19,6 +20,10 @@ export function UsersPanel() {
   const members = useQuery({ queryKey: ['members'], queryFn: fetchMembers })
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'owner' | 'viewer'>('viewer')
+  const [mode, setMode] = useState<'invite' | 'create'>('invite')
+  const [password, setPassword] = useState('')
+  const [revealed, setRevealed] = useState<{ email: string; password: string } | null>(null)
+  const [copied, setCopied] = useState(false)
   const [pending, setPending] = useState<Pending>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['members'] })
@@ -28,6 +33,17 @@ export function UsersPanel() {
     onSuccess: async () => {
       setNotice(`Invitation envoyée à ${email.trim()}. Le lien contenu dans l'e-mail lui permet de choisir son mot de passe.`)
       setEmail('')
+      await refresh()
+    },
+  })
+  const create = useMutation({
+    mutationFn: () => manageUsers({ action: 'create', email: email.trim(), password, role }),
+    onSuccess: async () => {
+      // Le mot de passe n'est affiché qu'ici, une seule fois ; il n'est conservé nulle part ailleurs.
+      setRevealed({ email: email.trim(), password })
+      setEmail('')
+      setPassword('')
+      setCopied(false)
       await refresh()
     },
   })
@@ -44,11 +60,26 @@ export function UsersPanel() {
     },
   })
 
-  function onInvite(e: FormEvent) {
+  function onSubmit(e: FormEvent) {
     e.preventDefault()
     setNotice(null)
-    invite.mutate()
+    setRevealed(null)
+    if (mode === 'invite') invite.mutate()
+    else create.mutate()
   }
+
+  async function copyPassword() {
+    if (!revealed) return
+    try {
+      await navigator.clipboard.writeText(revealed.password)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  const busy = invite.isPending || create.isPending
+  const canSubmit = Boolean(email.trim()) && (mode === 'invite' || password.length >= 12)
 
   return (
     <section className="space-y-6" aria-label="Utilisateurs">
@@ -57,29 +88,93 @@ export function UsersPanel() {
         <h1 className="text-3xl font-extrabold tracking-tight">Utilisateurs</h1>
         <p className={`mt-1 max-w-3xl ${mutedText}`}>
           Chaque personne se connecte avec son e-mail, son mot de passe et un code de son application d'authentification
-          (double authentification obligatoire). Il n'y a pas d'inscription libre : seul un propriétaire peut inviter.
+          (double authentification obligatoire). Il n'y a pas d'inscription libre : seul un propriétaire peut ajouter quelqu'un.
         </p>
       </div>
 
-      <form onSubmit={onInvite} className={`${card} grid gap-3 sm:grid-cols-[1fr_12rem_auto] sm:items-end`}>
-        <label className="text-sm font-medium">
-          Inviter par e-mail
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@exemple.fr" className={input} />
-        </label>
-        <label className="text-sm font-medium">
-          Rôle
-          <select value={role} onChange={(e) => setRole(e.target.value as 'owner' | 'viewer')} className={input}>
-            <option value="viewer">Lecteur (consultation)</option>
-            <option value="owner">Propriétaire (tous les droits)</option>
-          </select>
-        </label>
-        <button type="submit" className={btnPrimary} disabled={invite.isPending || !email.trim()}>
-          {invite.isPending ? 'Envoi…' : 'Envoyer l’invitation'}
-        </button>
-        <div className="sm:col-span-3">
-          <ErrorNote error={invite.error} />
+      <form onSubmit={onSubmit} className={`${card} space-y-4`}>
+        <div role="group" aria-label="Mode d'ajout" className="flex flex-wrap gap-1.5">
+          {(
+            [
+              ['invite', 'Inviter par e-mail'],
+              ['create', 'Créer avec un mot de passe'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={mode === key}
+              onClick={() => setMode(key)}
+              className={`rounded-full border px-3 py-1 text-sm font-medium ${mode === key ? 'border-brand bg-brand text-slate-950' : 'border-white/15 hover:bg-white/10'}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+        <p className={mutedText}>
+          {mode === 'invite'
+            ? "La personne reçoit un e-mail avec un lien pour choisir son mot de passe (nécessite l'envoi d'e-mails de Supabase)."
+            : "Le compte est créé tout de suite, sans e-mail. Vous transmettez vous-même le mot de passe (canal sûr) ; la personne le changera dans « Mon compte »."}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-[1fr_12rem] sm:items-end">
+          <label className="text-sm font-medium">
+            Adresse e-mail
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@exemple.fr" className={input} />
+          </label>
+          <label className="text-sm font-medium">
+            Rôle
+            <select value={role} onChange={(e) => setRole(e.target.value as 'owner' | 'viewer')} className={input}>
+              <option value="viewer">Lecteur (consultation)</option>
+              <option value="owner">Propriétaire (tous les droits)</option>
+            </select>
+          </label>
+        </div>
+        {mode === 'create' && (
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="text-sm font-medium">
+              Mot de passe (12 caractères minimum)
+              <input
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                minLength={12}
+                maxLength={72}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${input} font-mono`}
+              />
+            </label>
+            <button type="button" className={btn} onClick={() => setPassword(generatePassword())}>
+              Générer un mot de passe
+            </button>
+          </div>
+        )}
+        <ErrorNote error={invite.error ?? create.error} />
+        <button type="submit" className={btnPrimary} disabled={busy || !canSubmit}>
+          {busy ? 'Envoi…' : mode === 'invite' ? 'Envoyer l’invitation' : 'Créer le compte'}
+        </button>
       </form>
+
+      {revealed && (
+        <div role="status" className="rounded-xl border border-green-500/30 bg-green-500/5 px-4 py-3 text-sm">
+          <p className="font-medium text-green-300">Compte créé pour {revealed.email}.</p>
+          <p className="mt-1 text-slate-300">
+            Mot de passe (affiché une seule fois) : <code className="select-all rounded bg-white/10 px-1.5 py-0.5 font-mono">{revealed.password}</code>
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Transmettez-le par un canal sûr (gestionnaire de mots de passe). À sa première connexion, la personne créera son double authentification
+            (Google Authenticator) et pourra changer son mot de passe dans « Mon compte ».
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className={btn} onClick={() => void copyPassword()}>
+              {copied ? 'Copié ✓' : 'Copier le mot de passe'}
+            </button>
+            <button type="button" className={btn} onClick={() => setRevealed(null)}>
+              J’ai noté le mot de passe
+            </button>
+          </div>
+        </div>
+      )}
 
       {notice && (
         <p role="status" className="rounded-xl border border-green-500/30 bg-green-500/5 px-4 py-3 text-sm text-green-300">

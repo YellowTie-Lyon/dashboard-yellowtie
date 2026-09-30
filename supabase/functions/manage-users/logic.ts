@@ -12,6 +12,7 @@ export interface Member {
 
 export type Action =
   | { action: 'invite'; email: string; role: Role }
+  | { action: 'create'; email: string; password: string; role: Role }
   | { action: 'remove'; userId: string }
   | { action: 'reset_mfa'; userId: string }
 
@@ -29,6 +30,16 @@ export function parseRequest(body: unknown): Parsed {
     if (!EMAIL.test(email) || email.length > 254) return { ok: false, error: 'Adresse e-mail invalide.' }
     if (b.role !== 'owner' && b.role !== 'viewer') return { ok: false, error: 'Rôle invalide.' }
     return { ok: true, value: { action: 'invite', email, role: b.role } }
+  }
+  if (b.action === 'create') {
+    const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : ''
+    if (!EMAIL.test(email) || email.length > 254) return { ok: false, error: 'Adresse e-mail invalide.' }
+    if (b.role !== 'owner' && b.role !== 'viewer') return { ok: false, error: 'Rôle invalide.' }
+    // 12 caractères minimum ; 72 maximum (limite de bcrypt, utilisé par Supabase Auth).
+    if (typeof b.password !== 'string' || b.password.length < 12 || b.password.length > 72) {
+      return { ok: false, error: 'Le mot de passe doit contenir entre 12 et 72 caractères.' }
+    }
+    return { ok: true, value: { action: 'create', email, password: b.password, role: b.role } }
   }
   if (b.action === 'remove' || b.action === 'reset_mfa') {
     if (typeof b.userId !== 'string' || !UUID.test(b.userId)) return { ok: false, error: 'Utilisateur invalide.' }
@@ -87,6 +98,8 @@ export function inviteErrorMessage(error: { code?: string; message?: string } | 
         error:
           "Ce compte existe déjà dans Supabase sans être rattaché au workspace (invitation précédente incomplète). Supprimez-le dans Supabase > Authentication > Users, puis relancez l'invitation.",
       }
+    case 'weak_password':
+      return { status: 400, error: 'Mot de passe refusé par Supabase (trop simple ou trop courant). Choisissez-en un plus solide.' }
     case 'over_email_send_rate_limit':
       return { status: 429, error: "Trop d'e-mails envoyés récemment (limite de Supabase). Patientez une heure ou configurez un serveur SMTP." }
     case 'email_address_invalid':

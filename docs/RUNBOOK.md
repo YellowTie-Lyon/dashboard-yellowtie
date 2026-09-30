@@ -86,6 +86,7 @@ Réglages > seuils par défaut, ou page d'un Cloud > seuils propres à ce Cloud.
 ### Inviter, modifier ou retirer un utilisateur
 Menu **Utilisateurs** (propriétaires seulement) :
 - **Inviter** : e-mail + rôle (Lecteur = consultation ; Propriétaire = tous les droits). La personne reçoit un e-mail, choisit son mot de passe (12 caractères minimum) puis configure Google Authenticator.
+- **Créer avec un mot de passe** (sans e-mail) : onglet « Créer avec un mot de passe » ; bouton « Générer un mot de passe » ; le mot de passe s'affiche **une seule fois**, à transmettre par un canal sûr. Le compte est confirmé d'emblée ; la personne crée son 2FA à sa première connexion et peut changer son mot de passe dans « Mon compte ». Utile quand l'envoi d'e-mails de Supabase est limité.
 - **Changer le rôle** : menu déroulant de la ligne (le dernier propriétaire ne peut pas être rétrogradé).
 - **Réinitialiser le 2FA** : pour quelqu'un qui a perdu ou changé de téléphone ; il en recréera un à sa prochaine connexion.
 - **Supprimer** : retire le compte et tous ses accès. Vous ne pouvez pas vous supprimer vous-même.

@@ -15,10 +15,11 @@ export async function setMemberRole(userId: string, role: WorkspaceRole): Promis
 
 export type ManageAction =
   | { action: 'invite'; email: string; role: 'owner' | 'viewer' }
+  | { action: 'create'; email: string; password: string; role: 'owner' | 'viewer' }
   | { action: 'remove'; userId: string }
   | { action: 'reset_mfa'; userId: string }
 
-/** Invitation, suppression, réinitialisation du double facteur : exécutées côté serveur (fonction Edge « manage-users »). */
+/** Invitation, création directe, suppression, réinitialisation du double facteur : exécutées côté serveur (fonction Edge « manage-users »). */
 export async function manageUsers(body: ManageAction): Promise<void> {
   const { error } = await getSupabase().functions.invoke('manage-users', { body })
   if (!error) return
