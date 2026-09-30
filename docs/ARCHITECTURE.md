@@ -353,9 +353,9 @@ donnée) → détail Cloud (métriques, graphiques 1 h / 6 h / 24 h / 7 j / 30 j
 hébergements, agents, diagnostics) → détail hébergement (Cloud parent, agent, domaines, diagnostics) →
 détail domaine. Une page « valeurs brutes » permet de comparer avec la console Infomaniak.
 
-**Actualisation automatique** (aucun F5) : les requêtes se rafraîchissent toutes seules (15 s pour les états des agents et
-des Clouds, 30 s pour les graphiques courts et les fiches, 60 s pour les listes lentes et les graphiques longs), se
-mettent en pause quand l'onglet est masqué et reprennent immédiatement au retour sur l'onglet et à la reconnexion
+**Actualisation automatique synchronisée** (aucun F5) : un minuteur central (`<LiveSync />`, 30 s) recharge toutes les
+données de l'écran d'un seul coup (mesures, statuts, courbes, hébergements, domaines, incidents), pour que tout provienne du même
+instant ; les données figées (incident clos) s'en excluent (`meta: { static: true }`). Elles se mettent en pause quand l'onglet est masqué et reprennent immédiatement au retour sur l'onglet et à la reconnexion
 réseau. Un indicateur « En direct · actualisé il y a X s » est affiché dans l'en-tête ; « Connexion perdue · nouvelle
 tentative automatique » apparaît si une requête de l'écran échoue. Réglages centralisés dans `apps/web/src/lib/live.ts`.
 
