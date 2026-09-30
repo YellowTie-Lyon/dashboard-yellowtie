@@ -84,7 +84,7 @@ export function CloudPage() {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold uppercase tracking-tight">{c.name}</h1>
-            <StatusBadge status="unknown" />
+            <StatusBadge status={cloudState ? 'observing' : 'unknown'} />
             {c.maintenance && (
               <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                 Maintenance
