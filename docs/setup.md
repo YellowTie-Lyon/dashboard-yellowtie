@@ -185,7 +185,7 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 
 ## Phase 7 : trafic (top domaines, détail des logs) et nouvelle interface
 
-1. **Mettre à jour l'agent sur les 6 hébergements** (version 0.3.1) : relancez la commande d'installation (page de
+1. **Mettre à jour l'agent sur les 6 hébergements** (version 0.4.0) : relancez la commande d'installation (page de
    l'hébergement, voir « Mettre à jour un agent déjà installé »). À la question du token, appuyez sur **Entrée**.
 2. Attendez 2 à 3 minutes : l'agent analyse l'`access.log` chaque minute, comme le load (la toute première analyse ne fait que
    se positionner à la fin du fichier). Le classement de la première page porte par défaut sur les 15 dernières minutes

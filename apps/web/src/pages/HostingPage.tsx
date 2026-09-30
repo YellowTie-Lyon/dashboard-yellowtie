@@ -196,6 +196,7 @@ export function HostingPage() {
 
       {/* État de l'agent */}
       <HostingTraffic
+        hostingName={h.name}
         hostingId={h.id}
         focusDomain={focusDomain}
         onFocus={(domain) => setSearchParams(domain ? { domain } : {}, { replace: true })}

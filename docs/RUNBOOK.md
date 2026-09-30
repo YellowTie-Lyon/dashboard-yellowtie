@@ -37,7 +37,7 @@ ce que vous voyez, ce que cela veut dire, puis les gestes à faire dans l'ordre.
 Aucun agent **collecteur** n'envoie de relevés. Page du Cloud > hébergements : un seul est « collecteur système ». Vérifiez son agent (cas précédent) ou désignez un autre collecteur (« Définir comme collecteur »).
 
 ### Les domaines les plus sollicités restent vides
-1. Version de l'agent ≥ 0.3.1 ? (accueil, texte à côté du nom ; sinon **Mettre à jour l'agent**).
+1. Version de l'agent ≥ 0.4.0 ? (accueil, texte à côté du nom ; sinon **Mettre à jour l'agent**).
 2. Le fichier `~/ik-logs/access.log` existe-t-il ? `ls -l ~/ik-logs/access.log`.
 3. `grep '^tr_' ~/.ik-monitor/state` doit afficher `tr_off`, `tr_ino`, `tr_ts`. La première analyse ne fait que se positionner ; les données arrivent à la suivante (1 minute).
 4. `grep -o '"traffic_accepted":[0-9]*' ~/.ik-monitor/response` : 1 ou plus = le serveur reçoit.

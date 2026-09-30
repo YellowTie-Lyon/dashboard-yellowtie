@@ -153,7 +153,7 @@ calcule les dérivés (`load1_per_core`, `*_used_pct`), met à jour l'état du C
 
 ### Agent : fonctionnement local (`agent/ik-agent.sh`)
 
-- Lancé par cron chaque minute (`nice -n 19`). Verrou sans fork (PID + vérification du nom du processus).
+- Lancé par cron chaque minute en priorité normale (un agent en `nice 19` était étouffé pendant les surcharges) ; seuls `tail` et `awk` de l'analyse du trafic sont en `nice 19`. Délais curl 8 s (connexion) / 25 s (total). Verrou sans fork (PID + vérification du nom du processus).
 - 1 fork obligatoire par minute (`curl`) ; `df`, `stat` et le comptage des cœurs seulement toutes les 5 minutes.
 - État dans `~/.ik-monitor/` (dossier 700, fichiers 600) : `config`, `state`, `spool` (30 relevés max),
   `agent.log` (plafonné à 50 Ko, écrit uniquement lors d'un changement d'état).
@@ -174,7 +174,7 @@ Fonctionnement (bornes de charge) :
   saute directement au bon endroit. Première analyse : on part de la fin du fichier (aucun historique relu).
 - **Plafond de lecture** : 4 Mo par analyse (les plus récents ; le reste est marqué `trunc`), ramené à 1 Mo si le load 1 min
   dépasse 2 × le nombre de cœurs. Une rotation du log (inode différent) relit le nouveau fichier depuis le début.
-- **3 processus courts par minute** (sous-shell, `tail`, `awk`), la priorité (`nice 19`) héritée du cron.
+- **3 processus courts par minute** (sous-shell, `tail`, `awk`), les deux derniers en `nice 19`.
   Mesure : 30 000 lignes (4 Mo) en 0,14 s de CPU ; à chaque minute, quelques Ko seulement sont lus en temps normal.
 - **Un seul `awk` (POSIX)** agrège et n'émet qu'un JSON borné (< 12 Ko) : jusqu'à 30 domaines (requêtes, octets,
   2xx/3xx/4xx/5xx, POST, robots), 15 URL (nom de domaine + chemin, requête réduite au nom du 1ᵉʳ paramètre, sans valeur),
@@ -441,3 +441,8 @@ Monitoring de sites individuels, temps de réponse HTTP, certificats SSL, statis
 bots, comparaison trafic / charge, statistiques WordPress, MySQL, notifications e-mail / push, plusieurs
 utilisateurs et groupes de serveurs, lecture incrémentale des logs (inode + offset) pour un req/min permanent.
 Le modèle y est préparé (`extra jsonb`, `metric_definitions`, `workspace_id`, `hosting_traffic_metrics`).
+
+## Collecteur de secours et analyse assistée (agent 0.4.0, phase 11)
+
+- **Collecteur de secours** : si le collecteur désigné d'un Cloud se tait plus de 120 s (serveur étouffé), l'hébergement actif d'id le plus bas qui reporte encore relaie les métriques système (réponse `collector: true`, anomalie `backup_collector`). Il rend la main dès le retour du collecteur.
+- **Analyse assistée** (`lib/trafficAnalysis.ts`, `lib/trafficReport.ts`, `features/traffic/TrafficAnalysis.tsx`) : détection de motifs sur les agrégats (connexion, xmlrpc, paramètres, scanners, REST, admin-ajax, IP, robots, erreurs), règles Cloudflare suggérées (défi géré / limitation / blocage) à copier, et rapport « Copier pour ChatGPT ». YellowScope n'applique jamais de règle.

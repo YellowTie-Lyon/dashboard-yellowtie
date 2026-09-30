@@ -1,12 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ErrorNote } from '../../components/ErrorNote'
 import { card, labelMono, mutedText } from '../../components/ui'
 import { formatBytes, formatRelativeTime } from '../../lib/format'
 import { LIVE } from '../../lib/live'
 import { formatCount, formatRate, formatShare } from '../../lib/traffic'
 import { useNow } from '../../lib/useNow'
+import { fromHostingTraffic } from '../../lib/trafficView'
 import { fetchHostingTraffic } from './api'
+import { TrafficAnalysis } from './TrafficAnalysis'
 import { TrafficChart } from './TrafficChart'
 
 const WINDOWS = [
@@ -19,7 +21,7 @@ const WINDOWS = [
 const pct = (part: number, total: number) => (total > 0 ? (100 * part) / total : 0)
 
 /** Ce qui se passe sur un hébergement : domaines, URL, IP et visiteurs, tirés de son access.log (agrégats, pas de lignes brutes). */
-export function HostingTraffic({ hostingId, focusDomain, onFocus }: { hostingId: string; focusDomain: string | null; onFocus: (domain: string | null) => void }) {
+export function HostingTraffic({ hostingId, hostingName = 'Hébergement', focusDomain, onFocus }: { hostingId: string; hostingName?: string; focusDomain: string | null; onFocus: (domain: string | null) => void }) {
   const [minutes, setMinutes] = useState(60)
   const now = useNow(30_000)
   const q = useQuery({
@@ -29,6 +31,7 @@ export function HostingTraffic({ hostingId, focusDomain, onFocus }: { hostingId:
     placeholderData: keepPreviousData,
   })
   const t = q.data
+  const view = useMemo(() => (t ? fromHostingTraffic(t, hostingName, minutes) : null), [t, hostingName, minutes])
   const total = t?.totals.requests ?? 0
   const domains = t?.domains ?? []
   const maxDomain = Math.max(1, ...domains.map((d) => d.requests))
@@ -208,6 +211,7 @@ export function HostingTraffic({ hostingId, focusDomain, onFocus }: { hostingId:
           </p>
         </>
       )}
+      {view && <TrafficAnalysis view={view} />}
     </section>
   )
 }

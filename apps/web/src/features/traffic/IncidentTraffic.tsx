@@ -1,21 +1,27 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ErrorNote } from '../../components/ErrorNote'
 import { card, labelMono, mutedText } from '../../components/ui'
 import { TRAFFIC_LABELS } from '../../lib/labels'
 import { formatCount, formatShare } from '../../lib/traffic'
+import { fromIncidentTraffic } from '../../lib/trafficView'
+import type { ReportContext } from '../../lib/trafficReport'
 import { fetchIncidentTraffic } from './api'
+import { TrafficAnalysis } from './TrafficAnalysis'
 
 /**
  * Le trafic reçu pendant l'incident, par hébergement puis par domaine. Ce sont des candidats à examiner
  * (« potentiellement impliqués »), jamais un verdict : un volume élevé peut être normal (campagne, Googlebot…).
  */
-export function IncidentTraffic({ incidentId, open }: { incidentId: string; open: boolean }) {
+export function IncidentTraffic({ incidentId, open, cloudName = 'Serveur Cloud', incident }: { incidentId: string; open: boolean; cloudName?: string; incident?: ReportContext['incident'] }) {
   const q = useQuery({ queryKey: ['incident-traffic', incidentId], queryFn: () => fetchIncidentTraffic(incidentId), meta: { static: !open } })
   const t = q.data
+  const view = useMemo(() => (t ? fromIncidentTraffic(t, cloudName) : null), [t, cloudName])
   const maxDomain = Math.max(1, ...(t?.domains ?? []).map((d) => d.requests))
 
   return (
+    <>
     <div className={card}>
       <h2 className="font-semibold">{TRAFFIC_LABELS.topTraffic}</h2>
       <ErrorNote error={q.error} />
@@ -92,5 +98,7 @@ export function IncidentTraffic({ incidentId, open }: { incidentId: string; open
       )}
       <p className={`mt-4 text-xs ${mutedText}`}>Comptage de requêtes pendant la période : des pistes à vérifier, pas une cause établie.</p>
     </div>
+    {view && <TrafficAnalysis view={view} context={{ incident }} />}
+    </>
   )
 }

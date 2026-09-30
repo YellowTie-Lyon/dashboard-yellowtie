@@ -129,7 +129,21 @@ export function IncidentPage() {
         <p className={`mt-4 text-xs ${mutedText}`}>Ces constats décrivent l'état observé ; ils n'établissent pas de cause.</p>
       </div>
 
-      {(i.kind === 'performance' || i.kind === 'disk') && <IncidentTraffic incidentId={i.id} open={i.status !== 'closed'} />}
+      {(i.kind === 'performance' || i.kind === 'disk') && (
+        <IncidentTraffic
+          incidentId={i.id}
+          open={i.status !== 'closed'}
+          cloudName={i.cloud_servers?.name ?? 'Server Cloud'}
+          incident={{
+            cloud: i.cloud_servers?.name ?? 'Server Cloud',
+            kind: i.kind,
+            severity: i.severity_max,
+            startedAt: new Date(i.started_at).toLocaleString('fr-FR'),
+            endedAt: i.ended_at ? new Date(i.ended_at).toLocaleString('fr-FR') : null,
+            peaks: peaks.map(([metric, value]) => `${metricMeta(metric).label} ${formatMetric(metric, value)}`),
+          }}
+        />
+      )}
 
       <div className={card}>
         <h2 className="font-semibold">Chronologie</h2>
