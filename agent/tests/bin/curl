@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Faux curl pour les tests : enregistre les arguments, la requête et les en-têtes ; répond selon MOCK_HTTP_CODE / MOCK_BODY.
+echo "$*" >>"$MOCK_LOG"
+out=""; data=""
+while (($#)); do
+  case $1 in
+    -o) out=$2; shift ;;
+    -H) if [[ $2 == @* ]]; then cat "${2#@}" >>"$MOCK_HDRS"; fi; shift ;;
+    --data-binary) data=$2; shift ;;
+  esac
+  shift
+done
+printf '%s' "$data" >"$MOCK_LAST_BODY"
+printf '%s' "${MOCK_BODY-}" >"$out"
+printf '%s' "${MOCK_HTTP_CODE:-200}"
+[[ ${MOCK_HTTP_CODE:-200} == 000 ]] && echo "curl: (7) Failed to connect to example.supabase.co" >&2
+exit 0

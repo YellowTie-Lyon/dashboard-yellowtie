@@ -17,3 +17,6 @@ agent/.ik-monitor/
 *.log
 .netlify/
 coverage/
+
+# Généré au build par apps/web/scripts/copy-agent.mjs
+apps/web/public/agent/

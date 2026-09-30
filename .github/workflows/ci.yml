@@ -32,6 +32,15 @@ jobs:
           VITE_SUPABASE_URL: https://ci.invalid
           VITE_SUPABASE_ANON_KEY: ci-placeholder
 
+  agent:
+    name: Agent (shellcheck + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -x agent/ik-agent.sh agent/install.sh agent/tests/*.sh agent/tests/bin/*
+      - run: agent/tests/run.sh
+      - run: agent/tests/install-test.sh
+
   database:
     name: Base de données (migrations + pgTAP)
     runs-on: ubuntu-latest

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Faux df (format POSIX -P, en Ko).
+echo "Filesystem     1024-blocks      Used Available Capacity Mounted on"
+echo "/dev/mapper/vgdata-client 288348040 145159436 143188604 51% /home/x"

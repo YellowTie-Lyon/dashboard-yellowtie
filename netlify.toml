@@ -25,3 +25,10 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# L'agent est téléchargé par curl depuis les serveurs : texte brut, jamais mis en cache.
+[[headers]]
+  for = "/agent/*"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "no-cache"
