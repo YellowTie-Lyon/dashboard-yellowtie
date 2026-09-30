@@ -1,0 +1,36 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AppShell } from './components/AppShell'
+import { AuthProvider } from './features/auth/AuthProvider'
+import { RequireAuth } from './features/auth/RequireAuth'
+import { isSupabaseConfigured } from './lib/supabase'
+import { ConfigErrorPage } from './pages/ConfigErrorPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { LoginPage } from './pages/LoginPage'
+import { NotFoundPage } from './pages/NotFoundPage'
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+})
+
+export default function App() {
+  if (!isSupabaseConfigured) return <ConfigErrorPage />
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<RequireAuth />}>
+              <Route element={<AppShell />}>
+                <Route index element={<DashboardPage />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+}
