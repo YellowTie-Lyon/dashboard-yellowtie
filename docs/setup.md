@@ -240,4 +240,5 @@ l'agent. À la question du token, appuyez sur **Entrée** pour conserver l'actue
 - **Un exemple de chaque notification** : sept boutons de test (simple, alerte Critical, alerte Warning, rappel, retour à la normale, Cloud hors ligne, agent silencieux). Messages marqués [TEST], données fictives, mais mêmes couleurs, même mention, même bouton que les vrais.
 - Si le ping n'arrive pas : Slack peut restreindre qui a le droit d'utiliser @channel / @here dans un salon (réglage du salon ou de l'espace de travail) ; un membre doit aussi être présent dans le salon privé pour être notifié.
 - Migration `…0014_slack_mentions.sql` : appliquée par GitHub Actions après « push main ».
+- **Données réelles** : les vraies alertes sont toujours composées à partir de l'incident réel (Cloud, valeurs, seuils, domaines du moment). Le bouton **État réel actuel** envoie de la même façon un message avec vos vrais Clouds et leurs vraies valeurs, pour voir à quoi ressemblera une alerte avec vos données. Migration `…0015_slack_live_test.sql`.
 
