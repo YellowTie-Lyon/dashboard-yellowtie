@@ -163,3 +163,9 @@ export async function fetchHostingStates(hostingIds: string[]): Promise<HostingS
   if (error) throw error
   return data as HostingState[]
 }
+
+/** Migration vers un nouveau serveur : le Cloud oublie son hostname et son nombre de cœurs (réappris au prochain relevé). */
+export async function resetCloudIdentity(cloudId: string): Promise<void> {
+  const { error } = await getSupabase().rpc('reset_cloud_identity', { _cloud_id: cloudId })
+  if (error) throw error
+}

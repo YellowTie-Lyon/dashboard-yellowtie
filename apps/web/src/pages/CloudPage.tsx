@@ -11,6 +11,7 @@ import {
   fetchCloudStates,
   fetchHostingStates,
   fetchHostings,
+  resetCloudIdentity,
   setSystemCollector,
   sitesCount,
 } from '../features/inventory/api'
@@ -64,12 +65,22 @@ export function CloudPage() {
   const [editing, setEditing] = useState(false)
   const [addingHosting, setAddingHosting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const remove = useMutation({
     mutationFn: () => deleteCloud(cloudId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['clouds'] })
       void navigate('/', { replace: true })
+    },
+  })
+
+  const reset = useMutation({
+    mutationFn: () => resetCloudIdentity(cloudId),
+    onSuccess: async () => {
+      setResetting(false)
+      await queryClient.invalidateQueries({ queryKey: ['cloud', cloudId] })
+      await queryClient.invalidateQueries({ queryKey: ['clouds'] })
     },
   })
 
@@ -113,6 +124,9 @@ export function CloudPage() {
             <div className="flex gap-2">
               <button type="button" className={btn} onClick={() => setEditing(true)}>
                 Modifier
+              </button>
+              <button type="button" className={btn} onClick={() => setResetting(true)}>
+                Nouveau serveur
               </button>
               <button type="button" className={btnDanger} onClick={() => setDeleting(true)}>
                 Supprimer
@@ -289,6 +303,16 @@ export function CloudPage() {
         <CloudFormDialog open={editing} onClose={() => setEditing(false)} workspaceId={workspace.id} cloud={c} />
       )}
       <HostingFormDialog open={addingHosting} onClose={() => setAddingHosting(false)} cloudId={c.id} />
+      <ConfirmDialog
+        open={resetting}
+        title="Réapprendre le hostname et les cœurs ?"
+        message="À utiliser après une migration vers un nouveau serveur : le hostname et le nombre de vCPU sont oubliés puis réappris au prochain relevé de l'agent. L'historique, les incidents, les seuils et les tokens sont conservés."
+        confirmLabel="Réinitialiser"
+        pending={reset.isPending}
+        error={reset.error}
+        onConfirm={() => reset.mutate()}
+        onClose={() => setResetting(false)}
+      />
       <ConfirmDialog
         open={deleting}
         title="Supprimer ce Server Cloud ?"
